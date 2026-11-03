@@ -2,8 +2,9 @@ import type { FieldId } from "./fields";
 import type { ShapeId } from "./shapes";
 import type { Subject } from "./subjects";
 import { findAspect, findSensor } from "./camera";
+import type { SkyId } from "./backdrop";
 
-export type Background = "trees" | "city" | "none";
+export type Background = "trees" | "city" | "stadium" | "none";
 
 export interface Settings {
   subject: string;
@@ -27,8 +28,9 @@ export interface Settings {
   camHeightAuto: boolean;
   camHeight: number;
   background: Background;
-  /** Distance from the subject to the background, m. */
+  /** Distance from the subject to the background, m (not used by "stadium"). */
   bgGap: number;
+  sky: SkyId;
   field: FieldId;
   /** Camera position on the field (m, field coordinates) and viewing direction (degrees,
    *  0 = down the length of the field, positive = towards +x). Only used with a field. */
@@ -61,8 +63,9 @@ export const DEFAULT_SETTINGS: Settings = {
   coc: 0.03,
   camHeightAuto: true,
   camHeight: 1.6,
-  background: "trees",
+  background: "stadium",
   bgGap: 62,
+  sky: "clouds",
   field: "football",
   camX: 0,
   camZ: 0,
@@ -76,7 +79,8 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const FIELDS: FieldId[] = ["none", "football", "hockey", "basketball", "tennis"];
-const BACKGROUNDS: Background[] = ["trees", "city", "none"];
+const BACKGROUNDS: Background[] = ["trees", "city", "stadium", "none"];
+const SKY_IDS: SkyId[] = ["clouds", "clear", "sunset", "overcast", "plain"];
 const SHAPES: ShapeId[] = [
   "person",
   "bust",
@@ -126,6 +130,7 @@ export function sanitize(raw: Partial<Record<keyof Settings, unknown>>): Setting
     camHeight: n(raw.camHeight, d.camHeight, 0.01, 2000),
     background: BACKGROUNDS.includes(raw.background as Background) ? (raw.background as Background) : d.background,
     bgGap: n(raw.bgGap, d.bgGap, 0.1, 50000),
+    sky: SKY_IDS.includes(raw.sky as SkyId) ? (raw.sky as SkyId) : d.sky,
     field: FIELDS.includes(raw.field as FieldId) ? (raw.field as FieldId) : d.field,
     camX: n(raw.camX, d.camX, -1000, 1000),
     camZ: n(raw.camZ, d.camZ, -1000, 1000),
@@ -137,6 +142,11 @@ export function sanitize(raw: Partial<Record<keyof Settings, unknown>>): Setting
     labels: b(raw.labels, d.labels),
     fillTarget: n(raw.fillTarget, d.fillTarget, 0.05, 1),
   };
+}
+
+/** The stadium photo belongs to the football pitch; elsewhere it falls back to trees. */
+export function backgroundOf(s: Settings): Background {
+  return s.background === "stadium" && s.field !== "football" ? "trees" : s.background;
 }
 
 export function sensorSize(s: Settings): { w: number; h: number; short: string; name: string } {
@@ -168,6 +178,7 @@ const KEYS: [keyof Settings, string][] = [
   ["camHeight", "h"],
   ["background", "bg"],
   ["bgGap", "bd"],
+  ["sky", "sk"],
   ["field", "fl"],
   ["camX", "cx"],
   ["camZ", "cz"],

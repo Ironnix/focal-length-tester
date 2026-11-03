@@ -8,11 +8,13 @@
     frames?: { rect: Rect; label: string }[];
     /** Label for the picture itself when frame lines are shown. */
     ownLabel?: string;
+    /** A photo backdrop is drawn behind: leave the sky (and, in the stadium, beyond the boards) open. */
+    photo?: boolean;
     class?: string;
     label?: string;
   }
 
-  let { scene, thirds = false, frames = [], ownLabel = "", class: cls = "", label }: Props = $props();
+  let { scene, thirds = false, frames = [], ownLabel = "", photo = false, class: cls = "", label }: Props = $props();
 
   const uid = $props.id();
   const v = $derived(scene.view);
@@ -37,7 +39,7 @@
 <svg
   bind:clientHeight={pxHeight}
   viewBox="{v.x} {v.y} {v.w} {v.h}"
-  class="block h-full w-full {cls}"
+  class="relative block h-full w-full {cls}"
   preserveAspectRatio="xMidYMid slice"
   role={label ? "img" : undefined}
   aria-label={label}
@@ -59,11 +61,15 @@
     {/each}
   </defs>
 
-  <rect x={v.x} y={v.y} width={v.w} height={v.h} fill={scene.sky} />
+  {#if !photo}
+    <rect x={v.x} y={v.y} width={v.w} height={v.h} fill={scene.sky} />
+  {/if}
   {#if scene.hills?.d}
     <path d={scene.hills.d} fill={scene.hills.fill} filter={url(scene.hills.filter)} />
   {/if}
-  {#if scene.horizon < v.y + v.h}
+  {#if photo && scene.stadiumGround}
+    <path d={scene.stadiumGround} fill={scene.ground} />
+  {:else if scene.horizon < v.y + v.h}
     {@const top = Math.max(v.y, scene.horizon)}
     <rect x={v.x} y={top} width={v.w} height={v.y + v.h - top} fill={scene.ground} />
   {/if}

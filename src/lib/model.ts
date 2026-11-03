@@ -17,7 +17,9 @@ import {
   type DepthOfField,
   type Frame,
 } from "./optics";
-import { sensorSize, type Settings } from "./settings";
+import { STADIUM, stadiumDistance } from "./backdrop";
+import { placement } from "./placement";
+import { backgroundOf, sensorSize, type Settings } from "./settings";
 import type { Subject } from "./subjects";
 
 export interface Model {
@@ -91,7 +93,14 @@ export function compute(s: Settings, subject: Subject): Model {
   const frameH = (frame.height * subjectRange) / projection;
 
   const dof = depthOfField(s.focal, s.aperture, coc, focus);
-  const bg = s.background === "none" ? null : s.distance + subject.depth / 2 + s.bgGap;
+  const background = backgroundOf(s);
+  let bg: number | null = null;
+  if (background === "stadium") {
+    const p = placement(s);
+    bg = stadiumDistance(STADIUM, p.camera, p.forward);
+  } else if (background !== "none") {
+    bg = s.distance + subject.depth / 2 + s.bgGap;
+  }
 
   const px = sensorPixels(s.megapixels, sensor.w, sensor.h);
   const usedPxW = (frame.usedW / sensor.w) * px.width * frame.squeeze;

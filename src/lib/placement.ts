@@ -67,7 +67,7 @@ export function cameraSpots(field: Field): CameraSpot[] {
   const { length: L, width: W } = field;
   return [
     { id: "end", label: "End line", at: [0, 0] },
-    { id: "behind", label: "Behind the end", at: [0, -Math.max(3, L * 0.06)] },
+    { id: "behind", label: "Behind the end", at: [0, -3] },
     { id: "corner", label: "Corner", at: [-W / 2, 0] },
     { id: "side", label: "Side line, middle", at: [-W / 2 - 1.5, L / 2] },
   ];

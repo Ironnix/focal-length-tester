@@ -3,6 +3,7 @@
   import { sensorOutline } from "~/lib/scene";
   import { prefs, settings, type Analysis } from "~/lib/store.svelte";
   import { len, num } from "~/lib/units";
+  import Backdrop from "./Backdrop.svelte";
   import SceneSvg from "./SceneSvg.svelte";
 
   interface Props {
@@ -18,6 +19,7 @@
   let { view, maxHeight = "62vh", badge, active = false, onselect }: Props = $props();
 
   const scene = $derived(view.scene);
+  let photo = $state(false);
   const m = $derived(view.model);
   const aspect = $derived(scene.view.w / scene.view.h);
 
@@ -42,7 +44,8 @@
     style:aspect-ratio="{scene.view.w} / {scene.view.h}"
     style:max-width="min(100%, calc({maxHeight} * {aspect}))"
   >
-    <SceneSvg {scene} thirds={settings.thirds} {frames} ownLabel={frames.length ? `${m.sensor.short} (yours)` : ""} label={alt} />
+    <Backdrop {scene} bind:ready={photo} />
+    <SceneSvg {scene} {photo} thirds={settings.thirds} {frames} ownLabel={frames.length ? `${m.sensor.short} (yours)` : ""} label={alt} />
     {#if badge}
       <span
         class="absolute top-2 left-2 grid size-6 place-items-center rounded-md text-xs font-bold {active

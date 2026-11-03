@@ -1,5 +1,6 @@
 <script lang="ts">
   import { FIELD_NAMES, type FieldId } from "~/lib/fields";
+  import { SKIES, type SkyId } from "~/lib/backdrop";
   import type { Background } from "~/lib/settings";
   import { live, prefs, setField, settings } from "~/lib/store.svelte";
   import { fromDisplay, len, lenUnit, roundSig, toDisplay } from "~/lib/units";
@@ -20,14 +21,20 @@
     <Segmented
       label="Background"
       options={[
+        ...(settings.field === "football" ? [{ value: "stadium" as Background, label: "Stadium" }] : []),
         { value: "trees" as Background, label: "Trees" },
         { value: "city" as Background, label: "Buildings" },
         { value: "none" as Background, label: "None" },
       ]}
-      value={settings.background}
+      value={settings.background === "stadium" && settings.field !== "football" ? "trees" : settings.background}
       onchange={(v) => (settings.background = v)}
     />
-    {#if settings.background !== "none"}
+    {#if settings.background === "stadium" && settings.field === "football"}
+      <p class="text-xs text-ink-3">
+        A real 360° photo taken inside a stadium. It is fitted to the boards around the pitch, so the stands stay
+        in place when you move the camera.
+      </p>
+    {:else if settings.background !== "none"}
       <div class="flex items-center gap-3">
         <Slider
           label="Background behind subject"
@@ -48,6 +55,19 @@
         />
       </div>
       <p class="text-xs text-ink-3">Distance behind the subject — watch how blurred it gets.</p>
+    {/if}
+  </Field>
+
+  <Field label="Sky">
+    {#if settings.background === "stadium" && settings.field === "football"}
+      <p class="text-xs text-ink-3">The stadium photo has its own sky.</p>
+    {:else}
+      <Select
+        label="Sky"
+        value={settings.sky}
+        options={SKIES.map((k) => ({ value: k.id, label: k.label }))}
+        onchange={(v) => (settings.sky = v as SkyId)}
+      />
     {/if}
   </Field>
 

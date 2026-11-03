@@ -109,7 +109,10 @@
         use it to plan, then check through the viewfinder.
       </p>
       <p>
-        Settings stay in this browser. <button
+        Sky and stadium panoramas: <a
+          class="underline decoration-line-strong underline-offset-2 hover:text-ink"
+          href="https://polyhaven.com/hdris">Poly Haven</a
+        > (CC0; stadium by Sergej Majboroda). Settings stay in this browser. <button
           type="button"
           class="underline decoration-line-strong underline-offset-2 hover:text-ink"
           onclick={() => confirm("Reset all settings to the defaults? Your custom subjects stay.") && resetSettings()}

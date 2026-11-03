@@ -13,8 +13,10 @@ lens, on this sensor? And what is in focus?
 - **Camera:** full frame, APS-C, MFT, 1", phone, medium format and cine formats (Super 35,
   Super 16, LF) or a custom size; landscape/portrait; crops from 1:1 to 2.76:1; anamorphic
   squeeze 1.25×–2×; resolution.
-- **Preview:** a drawn scene in perspective with per-depth blur (depth of field), the in-focus zone
-  on the ground, distance labels, rule of thirds and smaller-sensor frame lines.
+- **Preview:** a scene in perspective with per-depth blur (depth of field), the in-focus zone
+  on the ground, distance labels, rule of thirds and smaller-sensor frame lines. Real 360° sky
+  photos, and on the football pitch a real stadium (360° photo fitted to the stands, so it stays
+  right wherever the camera stands).
 - **Top view:** camera, field of view, in-focus zone, subject and background to scale; drag
   the subject or the background to change distances. On a sports field you can put the camera and
   the subject anywhere (or pick end line, behind the end, corner, side line) — the camera turns to
@@ -26,6 +28,9 @@ lens, on this sensor? And what is in focus?
 - Metric or imperial, light or dark, shareable links that open the exact setup.
 
 No backend: everything is computed in the browser; settings live in `localStorage`.
+
+Sky and stadium panoramas: [Poly Haven](https://polyhaven.com/hdris), CC0 (stadium: "Stadium 01" by
+Sergej Majboroda).
 
 ## Stack
 

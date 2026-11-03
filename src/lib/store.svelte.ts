@@ -62,6 +62,9 @@ function validSubject(v: unknown): Subject | null {
 
 const browser = typeof window !== "undefined";
 
+/** Site base path with a trailing slash ("/" locally, "/focal-length-tester/" on Pages). */
+export const BASE = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+
 const storedCustom = browser
   ? (Array.isArray(read(CUSTOM_KEY)) ? (read(CUSTOM_KEY) as unknown[]) : []).map(validSubject).filter((s) => s !== null)
   : [];
@@ -116,7 +119,7 @@ export interface Analysis {
 function analyse(s: Settings): Analysis {
   const subject = findSubject(s.subject);
   const model = compute(s, subject);
-  const scene = buildScene(s, subject, model, { units: prefs.units });
+  const scene = buildScene(s, subject, model, { units: prefs.units, base: BASE });
   const box = scene.subject.box;
   return {
     settings: s,
@@ -175,6 +178,9 @@ export function applyPreset(p: DistancePreset) {
 
 /** Changing the ground puts the camera back on the middle of the near end line. */
 export function setField(field: FieldId) {
+  // The stadium photo goes with the football pitch; other grounds get open sky.
+  if (field === "football" && settings.field !== "football") settings.background = "stadium";
+  else if (field !== "football" && settings.background === "stadium") settings.background = field === "none" ? "trees" : "none";
   settings.field = field;
   settings.camX = 0;
   settings.camZ = 0;

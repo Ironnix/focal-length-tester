@@ -40,6 +40,13 @@ workflow sets `BASE_PATH=/focal-length-tester`; public files must be linked thro
   Ground lines are split into depth bands so each band gets its own Gaussian blur; painted field
   lines are ground quads (they foreshorten). Background trees/buildings sit on a fixed lattice
   (stable when zooming).
+- `src/lib/backdrop.ts` — photo backdrops drawn with WebGL2 behind the SVG (`Backdrop.svelte`, one shared
+  GL context copied into each view's 2D canvas, CSS blur by the blur disc at its distance). Skies are
+  360° panoramas at infinity; the **stadium** photo (football pitch only) is projected onto a box at the
+  advertising boards from the spot it was taken (`STADIUM.capture`, measured from the photo), so the
+  stands stay in place when the camera moves. In the stadium the SVG ground ends at that box
+  (`scene.stadiumGround`) and there are no hills/trees. Files in `public/panoramas/` keep latitude
+  −10°…90° only. All from Poly Haven (CC0); credit in the footer.
 - `src/lib/coverage.ts` — rasterises the subject's paths into a small canvas to measure the
   picture area it covers and how much of it is visible.
 - `src/lib/shapes.ts` — hand-drawn silhouettes (point lists in a box with the subject's proportions;

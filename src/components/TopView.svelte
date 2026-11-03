@@ -6,6 +6,8 @@
   import { along, placement, type P } from "~/lib/placement";
   import { compare, live, placeCamera, placeSubject, prefs, settings, tidy } from "~/lib/store.svelte";
   import { REFERENCE_PERSON } from "~/lib/subjects";
+  import { STADIUM } from "~/lib/backdrop";
+  import { backgroundOf } from "~/lib/settings";
   import { len, niceStepFor } from "~/lib/units";
 
   let measured = $state(640);
@@ -15,6 +17,7 @@
   const m = $derived(live.model);
   const subject = $derived(live.subject);
   const field = $derived(getField(settings.field));
+  const inStadium = $derived(backgroundOf(settings) === "stadium");
   const onField = $derived(field !== null);
   const d = $derived(settings.distance);
   const place = $derived(placement(settings));
@@ -58,6 +61,10 @@
       pts.push([-field.width / 2 - 2, -2], [field.width / 2 + 2, field.length + 2]);
     }
     if (ghost) pts.push(ghost.camera, ...ghost.footprint);
+    if (inStadium) {
+      const b = STADIUM.box;
+      pts.push([b.minX - 6, b.minZ - 6], [b.maxX + 6, b.maxZ + 6]);
+    }
     const xs = pts.map((p) => p[0]);
     const zs = pts.map((p) => p[1]);
     return { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
@@ -106,7 +113,7 @@
 
   const bg = $derived(m.background);
   const bgOnMap = $derived.by(() => {
-    if (bg === null) return false;
+    if (bg === null || inStadium) return false;
     const [x, y] = M(at(bg));
     return x >= 0 && x <= width && y >= 0 && y <= layout.height;
   });
@@ -222,6 +229,22 @@
       </g>
     {/if}
 
+    {#if inStadium}
+      {@const b = STADIUM.box}
+      {@const o = 30}
+      <!-- stands: a ring from the boards outwards -->
+      <path
+        d="{path([[b.minX - o, b.minZ - o], [b.maxX + o, b.minZ - o], [b.maxX + o, b.maxZ + o], [b.minX - o, b.maxZ + o]])}{path([[b.minX, b.minZ], [b.minX, b.maxZ], [b.maxX, b.maxZ], [b.maxX, b.minZ]])}"
+        fill-rule="evenodd"
+        class="pointer-events-none fill-ink-3/45"
+      />
+      <path
+        d={path([[b.minX, b.minZ], [b.maxX, b.minZ], [b.maxX, b.maxZ], [b.minX, b.maxZ]])}
+        class="pointer-events-none fill-none stroke-surface"
+        stroke-width="2"
+      />
+    {/if}
+
     <path d={cone} class="fill-accent/12 stroke-accent" stroke-width="1.2" stroke-linejoin="round" />
     <path d={zone} class="fill-focus/30" />
     {#each [m.dof.near, m.dof.far] as z, i (i)}
@@ -328,13 +351,13 @@
         class="fill-ink"
         {...halo}>{subject.name} · {len(d, prefs.units)}</text
       >
-      {#if bg !== null && !bgOnMap}
+      {#if bg !== null && !bgOnMap && !inStadium}
         <text x={width - 6} y="13" text-anchor="end" class="fill-ink-2">Background {len(bg, prefs.units)} →</text>
       {/if}
     </g>
   </svg>
   <p class="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-ink-3">
-    <span><span class="font-medium text-focus">In focus {len(m.dof.near, prefs.units)} – {len(m.dof.far, prefs.units)}</span>{#if bg !== null} · background at {len(bg, prefs.units)}{/if}</span>
+    <span><span class="font-medium text-focus">In focus {len(m.dof.near, prefs.units)} – {len(m.dof.far, prefs.units)}</span>{#if bg !== null} · {inStadium ? "stands" : "background"} at {len(bg, prefs.units)}{/if}</span>
     <span>{onField ? "Drag the camera or the subject anywhere on the field" : "Drag the subject or the background"}</span>
   </p>
 </div>

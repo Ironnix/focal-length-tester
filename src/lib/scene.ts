@@ -9,6 +9,8 @@ import { getField, type FieldLine } from "./fields";
 import type { Model } from "./model";
 import { blurDisc } from "./optics";
 import { placement, toCamera } from "./placement";
+import { SKIES, STADIUM, type BackdropView } from "./backdrop";
+import { backgroundOf } from "./settings";
 import type { Settings } from "./settings";
 import { pathFrom, SHAPES, type Pt, type Shape } from "./shapes";
 import { REFERENCE_PERSON, type Subject } from "./subjects";
@@ -45,6 +47,10 @@ export interface Silhouette {
 }
 
 export interface Scene {
+  /** Photographic sky / stadium behind the drawing (null = plain colour only). */
+  photo: (BackdropView & { url: string }) | null;
+  /** In the stadium the grass ends at the boards: ground drawn as this polygon when the photo shows. */
+  stadiumGround: string | null;
   view: Rect;
   crop: Rect;
   horizon: number;
@@ -66,6 +72,8 @@ export interface SceneOptions {
   /** Thumbnails: no grid, labels, zone or windows. */
   lite?: boolean;
   units: Units;
+  /** Base URL of the site (panorama files live in /panoramas). */
+  base?: string;
 }
 
 const NEAR = 0.05;
@@ -183,7 +191,9 @@ export function buildScene(s: Settings, subject: Subject, m: Model, opts: SceneO
     hillPts.push([x, Math.max(8, h), hillZ]);
   }
   hillPts.push([hillHalf, 0, hillZ], [-hillHalf, 0, hillZ]);
-  const hills: Drawn = { d: polyPath(cam, hillPts), fill: HILLS, filter: blurFor(hillZ) };
+  const background = backgroundOf(s);
+  const inStadium = background === "stadium";
+  const hills: Drawn | null = inStadium ? null : { d: polyPath(cam, hillPts), fill: HILLS, filter: blurFor(hillZ) };
 
   // ---- ground areas (fields, focus zone) ----------------------------------------------
   const areas: Drawn[] = [];
@@ -317,7 +327,7 @@ export function buildScene(s: Settings, subject: Subject, m: Model, opts: SceneO
     const zb = m.background;
     const filter = blurFor(zb);
     const half = halfWidthAt(zb) + 20;
-    if (s.background === "trees") {
+    if (background === "trees") {
       let spacing = 5.5;
       if ((2 * half) / spacing > 160) spacing = (2 * half) / 160;
       const K = Math.ceil(half / spacing);
@@ -345,7 +355,7 @@ export function buildScene(s: Settings, subject: Subject, m: Model, opts: SceneO
         );
       }
       backdrop.push({ d: d.join(""), fill: TREES, filter });
-    } else if (s.background === "city") {
+    } else if (background === "city") {
       const slot = 22;
       const K = Math.ceil(half / slot);
       const bodies: string[] = [];
@@ -425,7 +435,45 @@ export function buildScene(s: Settings, subject: Subject, m: Model, opts: SceneO
     };
   }
 
+  // ---- photographic backdrop ------------------------------------------------------------
+  const skyFile = SKIES.find((k) => k.id === s.sky)?.file ?? null;
+  const file = inStadium ? STADIUM.file : skyFile;
+  let photo: Scene["photo"] = null;
+  let stadiumGround: string | null = null;
+  if (file) {
+    const bgDist = inStadium ? (m.background ?? 1e5) : Infinity;
+    const sigma = opts.lite ? 0 : blurDisc(m.focal, m.aperture, m.focus, bgDist) * 0.33;
+    photo = {
+      file,
+      url: `${opts.base ?? "/"}panoramas/${file}`,
+      stadium: inStadium ? STADIUM : null,
+      camera: [place.camera[0], m.camera.height, place.camera[1]],
+      yaw: place.yaw,
+      pitch: m.camera.pitch,
+      focal: cam.focal,
+      viewW: view.w,
+      viewH: view.h,
+      blur: sigma < minSigma ? 0 : sigma,
+    };
+  }
+  if (inStadium) {
+    const b = STADIUM.box;
+    stadiumGround = polyPath(
+      cam,
+      ground(
+        rel([
+          [b.minX, b.minZ],
+          [b.maxX, b.minZ],
+          [b.maxX, b.maxZ],
+          [b.minX, b.maxZ],
+        ]),
+      ),
+    );
+  }
+
   return {
+    photo,
+    stadiumGround,
     view,
     crop,
     horizon,
