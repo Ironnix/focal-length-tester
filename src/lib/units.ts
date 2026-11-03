@@ -65,3 +65,10 @@ export function niceStep(raw: number): number {
 export function niceStepFor(rawM: number, units: Units): number {
   return units === "imperial" ? niceStep(rawM / FOOT) * FOOT : niceStep(rawM);
 }
+
+/** Rounds to `digits` significant digits, without float noise (62.800000000000004). */
+export function roundSig(v: number, digits = 3): number {
+  if (v === 0 || !Number.isFinite(v)) return v;
+  const p = 10 ** (Math.floor(Math.log10(Math.abs(v))) - digits + 1);
+  return +(Math.round(v / p) * p).toPrecision(12);
+}

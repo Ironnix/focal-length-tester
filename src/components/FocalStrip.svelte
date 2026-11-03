@@ -10,7 +10,7 @@
 
   const thumbs = $derived(
     FOCALS.map((focal) => {
-      const s = { ...settings, focal, outsideCrop: false };
+      const s = { ...settings, focal };
       const m = compute(s, live.subject);
       const scene = buildScene(s, live.subject, m, { lite: true, units: prefs.units });
       const box = scene.subject.box;

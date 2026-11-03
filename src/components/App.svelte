@@ -31,6 +31,28 @@
   );
 </script>
 
+{#snippet tabBar(cls: string)}
+  <nav class="scrollbar-thin flex gap-1 overflow-x-auto rounded-xl bg-surface-2 p-1 {cls}" aria-label="Settings">
+    {#each TABS as t (t.id)}
+      <button
+        type="button"
+        class="h-8 flex-1 rounded-lg px-3 text-xs font-medium whitespace-nowrap transition-colors {ui.tab === t.id
+          ? 'bg-surface text-ink shadow-sm dark:bg-surface-3'
+          : 'text-ink-2 hover:text-ink'}"
+        aria-current={ui.tab === t.id}
+        onclick={() => (ui.tab = t.id)}>{t.label}</button
+      >
+    {/each}
+  </nav>
+{/snippet}
+
+{#snippet topView()}
+  <section class="rounded-2xl border border-line bg-surface p-3 sm:p-4">
+    <h2 class="mb-2 text-sm font-semibold">Top view</h2>
+    <TopView />
+  </section>
+{/snippet}
+
 {#snippet panel(id: Tab)}
   {#if id === "subject"}<SubjectPanel />
   {:else if id === "distance"}<DistancePanel />
@@ -44,7 +66,8 @@
 <main class="mx-auto max-w-[1500px] px-4 pb-10 sm:px-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,390px)] lg:gap-6 lg:pt-5">
   <div class="min-w-0 space-y-4">
     {#if desktop.current}
-      <Viewfinder maxHeight="60vh" />
+      <Viewfinder maxHeight="54vh" />
+      {@render topView()}
       <StatTiles />
     {:else}
       <!-- On phones the picture stays on screen while the controls scroll beneath it. -->
@@ -52,31 +75,13 @@
         <div class="sticky top-0 z-20 -mx-4 border-b border-line bg-bg/95 px-4 pt-3 backdrop-blur sm:-mx-6 sm:px-6">
           <Viewfinder maxHeight="32vh" />
           <p class="mt-1.5 truncate text-center font-mono text-[11px] text-ink-2 tabular-nums">{quick}</p>
-          <nav class="scrollbar-thin -mx-1 mt-1 flex gap-1 overflow-x-auto pb-2" aria-label="Settings">
-            {#each TABS as t (t.id)}
-              <button
-                type="button"
-                class="h-8 flex-1 rounded-lg px-3 text-xs font-medium whitespace-nowrap transition-colors {ui.tab === t.id
-                  ? 'bg-ink text-bg'
-                  : 'text-ink-2 hover:bg-surface-2'}"
-                aria-current={ui.tab === t.id}
-                onclick={() => (ui.tab = t.id)}>{t.label}</button
-              >
-            {/each}
-          </nav>
+          {@render tabBar("mt-1 mb-2")}
         </div>
         <div class="pt-3">{@render panel(ui.tab)}</div>
       </div>
+      {@render topView()}
       <StatTiles />
     {/if}
-
-    <section class="rounded-2xl border border-line bg-surface p-4">
-      <div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h2 class="text-sm font-semibold">Top view</h2>
-        <p class="text-xs text-ink-3">Drag the subject or the background · green = in focus</p>
-      </div>
-      <TopView />
-    </section>
 
     <section class="rounded-2xl border border-line bg-surface p-4">
       <div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -110,8 +115,9 @@
   </div>
 
   {#if desktop.current}
-    <aside class="scrollbar-thin sticky top-5 max-h-[calc(100dvh-2.5rem)] space-y-3 self-start overflow-y-auto pb-4">
-      {#each TABS as t (t.id)}{@render panel(t.id)}{/each}
+    <aside class="sticky top-5 flex max-h-[calc(100dvh-2.5rem)] flex-col self-start">
+      {@render tabBar("shrink-0")}
+      <div class="scrollbar-thin mt-3 min-h-0 overflow-y-auto pb-4">{@render panel(ui.tab)}</div>
     </aside>
   {/if}
 </main>

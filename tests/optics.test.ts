@@ -11,6 +11,7 @@ import {
   frameOf,
   imageDistance,
 } from "../src/lib/optics";
+import { aim, placement, toCamera } from "../src/lib/placement";
 import { DEFAULT_SETTINGS, fromQuery, toQuery } from "../src/lib/settings";
 import { PRESET_SUBJECTS } from "../src/lib/subjects";
 
@@ -118,5 +119,44 @@ describe("share links", () => {
   test("clamps nonsense", () => {
     expect(fromQuery("f=-5&d=abc")?.settings.focal).toBe(1);
     expect(fromQuery("f=-5&d=abc")?.settings.distance).toBe(DEFAULT_SETTINGS.distance);
+  });
+});
+
+describe("placement on a field", () => {
+  const base = { ...DEFAULT_SETTINGS, field: "football" as const };
+
+  test("default camera looks down the field", () => {
+    const p = placement({ ...base, distance: 105 });
+    expect(p.subject[0]).toBeCloseTo(0);
+    expect(p.subject[1]).toBeCloseTo(105);
+  });
+
+  test("a field point straight ahead lands on the camera axis", () => {
+    // camera in a corner, aiming at the centre spot
+    const a = aim([-34, 0], [0, 52.5]);
+    const p = placement({ ...base, camX: -34, camZ: 0, yaw: a.yaw, distance: a.distance });
+    const [x, z] = toCamera(p, [0, 52.5]);
+    expect(x).toBeCloseTo(0, 6);
+    expect(z).toBeCloseTo(Math.hypot(34, 52.5), 6);
+    expect(p.subject[0]).toBeCloseTo(0, 6);
+    expect(p.subject[1]).toBeCloseTo(52.5, 6);
+  });
+
+  test("turning right puts the old forward on the left", () => {
+    const p = placement({ ...base, yaw: 90 });
+    // field point ahead of the original view (+z) is now to the camera's left
+    expect(toCamera(p, [0, 10])[0]).toBeCloseTo(-10, 6);
+  });
+
+  test("without a field the position is ignored", () => {
+    const p = placement({ ...DEFAULT_SETTINGS, camX: 20, yaw: 45 });
+    expect(p.camera).toEqual([0, 0]);
+    expect(p.forward[0]).toBeCloseTo(0);
+  });
+
+  test("camera position survives a share link", () => {
+    const q = toQuery({ ...base, camX: -34, camZ: 0, yaw: 32.9 }, PRESET_SUBJECTS[0]!);
+    const back = fromQuery(q)!.settings;
+    expect([back.camX, back.camZ, back.yaw]).toEqual([-34, 0, 32.9]);
   });
 });

@@ -6,11 +6,13 @@
     scene: Scene;
     thirds?: boolean;
     frames?: { rect: Rect; label: string }[];
+    /** Label for the picture itself when frame lines are shown. */
+    ownLabel?: string;
     class?: string;
     label?: string;
   }
 
-  let { scene, thirds = false, frames = [], class: cls = "", label }: Props = $props();
+  let { scene, thirds = false, frames = [], ownLabel = "", class: cls = "", label }: Props = $props();
 
   const uid = $props.id();
   const v = $derived(scene.view);
@@ -18,7 +20,6 @@
   const fs = $derived(scene.fontSize);
   const pad = $derived(v.w * 0.3);
   const url = (id: string | null) => (id ? `url(#${uid}-${id})` : undefined);
-  const cropped = $derived(Math.abs(v.w - c.w) > 1e-6 || Math.abs(v.h - c.h) > 1e-6);
 
   // Labels never smaller than 10 px on screen; drop the ones that would then overlap.
   let pxHeight = $state(0);
@@ -154,12 +155,15 @@
     >
   {/each}
 
-  {#if cropped}
-    <path
-      d="M{v.x} {v.y}h{v.w}v{v.h}h{-v.w}zM{c.x} {c.y}v{c.h}h{c.w}v{-c.h}z"
-      fill="rgb(10 12 16 / 0.62)"
-      fill-rule="evenodd"
-    />
-    <rect x={c.x} y={c.y} width={c.w} height={c.h} fill="none" stroke="rgb(255 255 255 / 0.7)" stroke-width={fs * 0.06} />
+  {#if ownLabel}
+    <text
+      x={v.x + fs * 0.45}
+      y={v.y + fs * 1.15}
+      font-size={fs * 0.8}
+      fill="rgb(255 214 102)"
+      stroke="rgb(0 0 0 / 0.5)"
+      stroke-width={fs * 0.14}
+      paint-order="stroke">{ownLabel}</text
+    >
   {/if}
 </svg>

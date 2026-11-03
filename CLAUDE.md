@@ -38,13 +38,21 @@ workflow sets `BASE_PATH=/focal-length-tester`; public files must be linked thro
   picture area it covers and how much of it is visible.
 - `src/lib/shapes.ts` — hand-drawn silhouettes (point lists in a box with the subject's proportions;
   a point listed twice = sharp corner; `light` parts are windows/hubs). `subjects.ts` — presets with real sizes.
-- `src/lib/fields.ts` — football pitch, ice hockey rink, basketball and tennis court to scale; the
-  camera stands at z = 0 on the middle of one end line. `presets.ts` — distance presets (some set a field).
+- `src/lib/fields.ts` — football pitch, ice hockey rink, basketball and tennis court to scale, in
+  field coordinates (x across, z along; z = 0 is the near end line). `presets.ts` — distance presets
+  (some set a field; applying one puts the camera back on the middle of the end line).
+- `src/lib/placement.ts` — camera spot (`camX`, `camZ`) and `yaw` on a field; the camera always aims
+  at the subject (`distance` along the line of sight). `toCamera()` turns field points into the
+  camera coordinates `scene.ts` projects. Without a field the camera is at the origin, yaw 0.
+  Store actions `placeSubject`, `placeCamera`, `setField` keep distance/yaw in sync.
 - `src/lib/camera.ts` — sensor formats, aspect crops, squeezes, f-stops, chip values.
 - Components: `Viewfinder` (+ overlay toggles) → `SceneSvg` (also used by `FocalStrip` thumbnails),
-  `TopView` (drag subject/background/focus), `StatTiles`, `Details` (+ fit), `controls/*Panel`,
-  `CustomSubjectDialog`, `Header`. Desktop: controls in a sticky sidebar; phone (< 1024 px,
-  `MediaQuery`): sticky preview + tabbed panels.
+  `TopView` (map in field coordinates; drag subject/background/focus, on a field also the camera),
+  `StatTiles`, `Details` (+ fit), `controls/*Panel`, `CustomSubjectDialog`, `Header`. The control
+  panels are tabs (`ui.tab`): in a sticky sidebar on desktop, under a sticky preview on phones
+  (< 1024 px, `MediaQuery`). The top view sits right under the preview.
+- The preview always shows exactly the delivered picture (sensor area after the aspect crop) —
+  Ralf wants it to look like the photo; frame lines of smaller sensors are an optional overlay.
 
 ## Conventions
 - Look: flat and simple — no gradients, glow or glossy effects (Ralf's preference). Colour tokens

@@ -8,6 +8,7 @@
 import { getField, type FieldLine } from "./fields";
 import type { Model } from "./model";
 import { blurDisc } from "./optics";
+import { placement, toCamera } from "./placement";
 import type { Settings } from "./settings";
 import { pathFrom, SHAPES, type Pt, type Shape } from "./shapes";
 import { REFERENCE_PERSON, type Subject } from "./subjects";
@@ -137,10 +138,8 @@ export function buildScene(s: Settings, subject: Subject, m: Model, opts: SceneO
   const { frame } = m;
   const cam = new Camera(m.projection, m.camera.height, m.camera.pitch);
   const crop: Rect = { x: -frame.width / 2, y: -frame.height / 2, w: frame.width, h: frame.height };
-  const view: Rect =
-    s.outsideCrop && !opts.lite
-      ? { x: -frame.fullWidth / 2, y: -frame.fullHeight / 2, w: frame.fullWidth, h: frame.fullHeight }
-      : crop;
+  // The view is exactly the delivered picture (sensor area after the aspect crop).
+  const view: Rect = crop;
   const fontSize = crop.h * 0.028;
 
   // ---- blur -------------------------------------------------------------------------
@@ -188,8 +187,11 @@ export function buildScene(s: Settings, subject: Subject, m: Model, opts: SceneO
 
   // ---- ground areas (fields, focus zone) ----------------------------------------------
   const areas: Drawn[] = [];
+  // Field geometry is in field coordinates; the camera may stand anywhere on it.
+  const place = placement(s);
+  const rel = (pts: [number, number][]) => pts.map((p) => toCamera(place, p));
   if (field) {
-    for (const a of field.areas) areas.push({ d: polyPath(cam, ground(a.pts)), fill: a.color, filter: null });
+    for (const a of field.areas) areas.push({ d: polyPath(cam, ground(rel(a.pts))), fill: a.color, filter: null });
   }
 
   // ---- lines on the ground, banded by depth so each band gets its own blur -------------
@@ -248,7 +250,7 @@ export function buildScene(s: Settings, subject: Subject, m: Model, opts: SceneO
 
   const labels: Scene["labels"] = [];
   if (field && !opts.lite) {
-    for (const l of field.lines as FieldLine[]) addLine(l.pts, l.color, l.width, l.closed);
+    for (const l of field.lines as FieldLine[]) addLine(rel(l.pts), l.color, l.width, l.closed);
   } else if (!field && !opts.lite) {
     // A ground grid that scales with the subject distance.
     const step = niceStepFor(s.distance / 4, opts.units);

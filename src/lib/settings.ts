@@ -30,12 +30,16 @@ export interface Settings {
   /** Distance from the subject to the background, m. */
   bgGap: number;
   field: FieldId;
+  /** Camera position on the field (m, field coordinates) and viewing direction (degrees,
+   *  0 = down the length of the field, positive = towards +x). Only used with a field. */
+  camX: number;
+  camZ: number;
+  yaw: number;
   reference: boolean;
   thirds: boolean;
   focusZone: boolean;
   sensorFrames: boolean;
   labels: boolean;
-  outsideCrop: boolean;
   fillTarget: number;
 }
 
@@ -60,12 +64,14 @@ export const DEFAULT_SETTINGS: Settings = {
   background: "trees",
   bgGap: 20,
   field: "none",
+  camX: 0,
+  camZ: 0,
+  yaw: 0,
   reference: false,
   thirds: false,
   focusZone: true,
   sensorFrames: false,
   labels: true,
-  outsideCrop: true,
   fillTarget: 0.9,
 };
 
@@ -121,12 +127,14 @@ export function sanitize(raw: Partial<Record<keyof Settings, unknown>>): Setting
     background: BACKGROUNDS.includes(raw.background as Background) ? (raw.background as Background) : d.background,
     bgGap: n(raw.bgGap, d.bgGap, 0.1, 50000),
     field: FIELDS.includes(raw.field as FieldId) ? (raw.field as FieldId) : d.field,
+    camX: n(raw.camX, d.camX, -1000, 1000),
+    camZ: n(raw.camZ, d.camZ, -1000, 1000),
+    yaw: n(raw.yaw, d.yaw, -360, 360),
     reference: b(raw.reference, d.reference),
     thirds: b(raw.thirds, d.thirds),
     focusZone: b(raw.focusZone, d.focusZone),
     sensorFrames: b(raw.sensorFrames, d.sensorFrames),
     labels: b(raw.labels, d.labels),
-    outsideCrop: b(raw.outsideCrop, d.outsideCrop),
     fillTarget: n(raw.fillTarget, d.fillTarget, 0.05, 1),
   };
 }
@@ -161,6 +169,9 @@ const KEYS: [keyof Settings, string][] = [
   ["background", "bg"],
   ["bgGap", "bd"],
   ["field", "fl"],
+  ["camX", "cx"],
+  ["camZ", "cz"],
+  ["yaw", "yw"],
   ["reference", "r"],
 ];
 

@@ -2,7 +2,7 @@
   import InfinityIcon from "@lucide/svelte/icons/infinity";
   import { APERTURE_CHIPS, APERTURES, FOCAL_CHIPS, FOCAL_MAX, FOCAL_MIN, fmtAperture } from "~/lib/camera";
   import { live, prefs, settings } from "~/lib/store.svelte";
-  import { fromDisplay, len, lenUnit, num, toDisplay } from "~/lib/units";
+  import { fromDisplay, len, lenUnit, num, roundSig, toDisplay } from "~/lib/units";
   import Chips from "../ui/Chips.svelte";
   import Field from "../ui/Field.svelte";
   import NumberField from "../ui/NumberField.svelte";
@@ -17,10 +17,7 @@
     const p = 10 ** (Math.floor(Math.log10(v)) - 2);
     return Math.ceil(v / p) * p;
   };
-  const sig3 = (v: number) => {
-    const p = 10 ** (Math.floor(Math.log10(v)) - 1);
-    return Math.round(v / p) * p;
-  };
+  const sig2 = (v: number) => roundSig(v, 2);
 </script>
 
 <Section title="Lens">
@@ -96,7 +93,7 @@
           min={0.2}
           max={3000}
           scale="log"
-          round={sig3}
+          round={sig2}
           onchange={(v) => (settings.focus = v)}
         />
         <NumberField

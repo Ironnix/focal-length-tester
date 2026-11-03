@@ -6,8 +6,10 @@ import { compute } from "./model";
 import { buildScene } from "./scene";
 import { DEFAULT_SETTINGS, fromQuery, isShape, sanitize, toQuery, type Settings } from "./settings";
 import { PRESET_SUBJECTS, type Subject } from "./subjects";
-import type { Units } from "./units";
+import { roundSig, type Units } from "./units";
 import type { DistancePreset } from "./presets";
+import type { FieldId } from "./fields";
+import { aim, placement, type P } from "./placement";
 
 export type Theme = "system" | "light" | "dark";
 
@@ -100,8 +102,38 @@ export const live = new Live();
 // ---- actions --------------------------------------------------------------------------
 
 export function applyPreset(p: DistancePreset) {
+  setField(p.field);
   settings.distance = p.distance;
-  settings.field = p.field;
+}
+
+/** Changing the ground puts the camera back on the middle of the near end line. */
+export function setField(field: FieldId) {
+  settings.field = field;
+  settings.camX = 0;
+  settings.camZ = 0;
+  settings.yaw = 0;
+}
+
+/** ~3 significant digits, so dragged values read cleanly. */
+export const tidy = (v: number) => roundSig(v, 3);
+
+function aimAt(camera: P, target: P, minus = 0) {
+  const a = aim(camera, target);
+  settings.distance = tidy(Math.max(0.3, a.distance - minus));
+  settings.yaw = Math.round(a.yaw * 10) / 10;
+}
+
+/** Moves the subject (its centre) to a field point; the camera turns to follow it. */
+export function placeSubject(at: P) {
+  aimAt(placement(settings).camera, at, live.subject.depth / 2);
+}
+
+/** Moves the camera; the subject stays where it is. */
+export function placeCamera(at: P) {
+  const target = placement(settings).subject;
+  settings.camX = Math.round(at[0] * 10) / 10;
+  settings.camZ = Math.round(at[1] * 10) / 10;
+  aimAt([settings.camX, settings.camZ], target);
 }
 
 export function saveCustomSubject(subject: Subject) {

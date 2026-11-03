@@ -1,8 +1,10 @@
 <script lang="ts">
-  // Bird's-eye map: camera on the left, looking right. Drag the subject, the background or
-  // (with manual focus) the focus line to change the distances.
+  // Bird's-eye map in field coordinates (z to the right, x downwards). Drag the subject, the
+  // background or (with manual focus) the focus line; on a field also drag the camera — it
+  // always turns to face the subject.
   import { getField } from "~/lib/fields";
-  import { live, prefs, settings } from "~/lib/store.svelte";
+  import { along, placement, type P } from "~/lib/placement";
+  import { live, placeCamera, placeSubject, prefs, settings, tidy } from "~/lib/store.svelte";
   import { REFERENCE_PERSON } from "~/lib/subjects";
   import { len, niceStepFor } from "~/lib/units";
 
@@ -13,111 +15,135 @@
   const m = $derived(live.model);
   const subject = $derived(live.subject);
   const field = $derived(getField(settings.field));
+  const onField = $derived(field !== null);
   const d = $derived(settings.distance);
-  const halfAngle = $derived(Math.atan(m.frame.width / 2 / m.projection));
+  const place = $derived(placement(settings));
+  const tan = $derived(m.frame.width / 2 / m.projection);
+  const at = (ahead: number, side = 0) => along(place, ahead, side);
 
-  // What the map has to show, in metres.
+  // Everything the map has to show, as a box in field coordinates.
   const needed = $derived.by(() => {
-    const subjectEnd = d + subject.depth;
-    let zEnd = Math.max(subjectEnd * 1.3, subjectEnd + 1);
-    if (Number.isFinite(m.dof.far) && m.dof.far < zEnd * 2) zEnd = Math.max(zEnd, m.dof.far * 1.08);
-    if (m.background !== null && m.background < zEnd * 4) zEnd = Math.max(zEnd, m.background * 1.08 + 1);
-    let half = Math.max((subject.width / 2) * 1.6, zEnd * 0.1);
-    if (field && field.length < zEnd * 6) {
-      zEnd = Math.max(zEnd, field.length + 3);
-      half = Math.max(half, field.width / 2 + 2);
+    const end = d + subject.depth;
+    const ahead = Math.max(end * 1.3, end + 1);
+    const pts: P[] = [
+      at(-ahead * 0.05),
+      at(ahead),
+      at(ahead * 0.6, ahead * 0.1),
+      at(ahead * 0.6, -ahead * 0.1),
+      at(d, subject.width * 0.8),
+      at(d, -subject.width * 0.8),
+    ];
+    if (Number.isFinite(m.dof.far) && m.dof.far < ahead * 2) pts.push(at(m.dof.far * 1.05));
+    if (m.background !== null && m.background < ahead * 4) pts.push(at(m.background * 1.06 + 1));
+    if (settings.reference) pts.push(at(d, subject.width / 2 + 1.6));
+    if (field) {
+      pts.push([-field.width / 2 - 2, -2], [field.width / 2 + 2, field.length + 2]);
     }
-    if (settings.reference) half = Math.max(half, subject.width / 2 + 1.6);
-    return { zEnd, half };
+    const xs = pts.map((p) => p[0]);
+    const zs = pts.map((p) => p[1]);
+    return { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
   });
 
   // Frozen while dragging so the map doesn't rescale under the pointer.
-  let frozen = $state<{ zEnd: number; half: number } | null>(null);
-  const span = $derived(frozen ?? needed);
+  let frozen = $state<typeof needed | null>(null);
+  const box = $derived(frozen ?? needed);
 
-  const MIN_H = 170;
-  const MAX_H = 320;
+  const MIN_H = 180;
+  const MAX_H = 340;
+  const PAD = 14;
   const layout = $derived.by(() => {
-    const zMin = -span.zEnd * 0.05;
-    let k = width / (span.zEnd - zMin);
-    let height = 2 * span.half * k + 28;
-    if (height > MAX_H) {
-      k = (MAX_H - 28) / (2 * span.half);
-      height = MAX_H;
-    }
-    height = Math.max(MIN_H, height);
-    return { zMin, k, height, zMax: zMin + width / k };
+    const spanZ = Math.max(box.maxZ - box.minZ, 0.5);
+    const spanX = Math.max(box.maxX - box.minX, 0.5);
+    const k = Math.min((width - 2 * PAD) / spanZ, (MAX_H - 2 * PAD) / spanX);
+    const height = Math.min(MAX_H, Math.max(MIN_H, spanX * k + 2 * PAD));
+    return {
+      k,
+      height,
+      ox: (width - spanZ * k) / 2 - box.minZ * k,
+      oy: (height - spanX * k) / 2 - box.minX * k,
+    };
   });
 
-  const X = (z: number) => (z - layout.zMin) * layout.k;
-  const Y = (x: number) => (layout.height - 24) / 2 + x * layout.k;
-  const cy = $derived(Y(0));
+  const M = ([x, z]: P): [number, number] => [layout.ox + z * layout.k, layout.oy + x * layout.k];
+  const path = (pts: P[], closed = true) =>
+    `M${pts.map((p) => M(p).map((v) => v.toFixed(1)).join(" ")).join("L")}${closed ? "Z" : ""}`;
+  const px = (n: number) => n / layout.k;
 
-  const ticks = $derived.by(() => {
-    const step = niceStepFor((layout.zMax - layout.zMin) / 7, prefs.units);
-    const out: number[] = [];
-    for (let z = step; z < layout.zMax && out.length < 40; z += step) out.push(z);
-    return out;
-  });
-
-  const fieldPath = (pts: [number, number][], closed = false) =>
-    `M${pts.map(([x, z]) => `${X(z).toFixed(1)} ${Y(x).toFixed(1)}`).join("L")}${closed ? "Z" : ""}`;
-
-  // Visible cone, stopped at the map's right edge.
-  const coneEnd = $derived(layout.zMax + 10);
-  const tan = $derived(Math.tan(halfAngle));
-  const cone = $derived(
-    `M${X(0)} ${cy}L${X(coneEnd)} ${Y(-coneEnd * tan)}L${X(coneEnd)} ${Y(coneEnd * tan)}Z`,
-  );
+  // Longest distance that can appear on the map, for the cone and the axis.
+  const reach = $derived(Math.hypot(width, layout.height) / layout.k + Math.hypot(...place.camera) + 50);
+  const cone = $derived(path([place.camera, at(reach, -reach * tan), at(reach, reach * tan)]));
   const zone = $derived.by(() => {
     const n = Math.max(0, m.dof.near);
-    const f = Math.min(Number.isFinite(m.dof.far) ? m.dof.far : coneEnd, coneEnd);
-    return `M${X(n)} ${Y(-n * tan)}L${X(f)} ${Y(-f * tan)}L${X(f)} ${Y(f * tan)}L${X(n)} ${Y(n * tan)}Z`;
+    const f = Math.min(Number.isFinite(m.dof.far) ? m.dof.far : reach, reach);
+    return path([at(n, -n * tan), at(f, -f * tan), at(f, f * tan), at(n, n * tan)]);
+  });
+
+  const ticks = $derived.by(() => {
+    const step = niceStepFor(width / layout.k / 7, prefs.units);
+    const out: number[] = [];
+    for (let t = step; t < reach && out.length < 60; t += step) out.push(t);
+    return out;
   });
 
   const bg = $derived(m.background);
-  const bgOnMap = $derived(bg !== null && bg < layout.zMax);
+  const bgOnMap = $derived.by(() => {
+    if (bg === null) return false;
+    const [x, y] = M(at(bg));
+    return x >= 0 && x <= width && y >= 0 && y <= layout.height;
+  });
+  const bgHalf = $derived(bg === null ? 0 : Math.min(bg * tan * 1.4 + 6, px(layout.height + width)));
   const bgMarks = $derived.by(() => {
     if (!bgOnMap || bg === null) return [];
-    const half = Math.min(bg * tan * 1.4 + 6, (layout.height / layout.k) * 0.6);
     const step = settings.background === "trees" ? 5.5 : 22;
-    const pxStep = step * layout.k;
-    // Too dense to draw individually: the line alone says enough.
-    if (pxStep < 5) return [];
+    if (step * layout.k < 5) return [];
     const out: number[] = [];
-    for (let x = -Math.ceil(half / step) * step; x <= half; x += step) out.push(x);
+    for (let x = -Math.ceil(bgHalf / step) * step; x <= bgHalf && out.length < 300; x += step) out.push(x);
     return out;
   });
 
+  const footprint = $derived(
+    path([at(d, -subject.width / 2), at(d, subject.width / 2), at(d + subject.depth, subject.width / 2), at(d + subject.depth, -subject.width / 2)]),
+  );
+  const refX = $derived(subject.width / 2 + 0.4 + REFERENCE_PERSON.width / 2);
+  const camAt = $derived(M(place.camera));
+  const subjAt = $derived(M(at(d + subject.depth / 2)));
+  const yawDeg = $derived((place.yaw * 180) / Math.PI);
+
   // ---- dragging ------------------------------------------------------------------------
   let svg: SVGSVGElement | undefined = $state();
-  let dragging = $state<"subject" | "background" | "focus" | null>(null);
+  let dragging = $state<"subject" | "camera" | "background" | "focus" | null>(null);
 
-  function zAt(e: PointerEvent): number {
+  function worldAt(e: PointerEvent): P {
     const r = svg!.getBoundingClientRect();
-    return (e.clientX - r.left) / layout.k + layout.zMin;
+    return [(e.clientY - r.top - layout.oy) / layout.k, (e.clientX - r.left - layout.ox) / layout.k];
   }
 
-  /** Rounds to ~3 significant digits so values read cleanly. */
-  function tidy(v: number): number {
-    const p = 10 ** (Math.floor(Math.log10(Math.abs(v))) - 2);
-    return Math.round(v / p) * p;
+  /** Distance of a point along the line of sight. */
+  function aheadOf(p: P): number {
+    return (p[0] - place.camera[0]) * place.forward[0] + (p[1] - place.camera[1]) * place.forward[1];
   }
 
   function apply(e: PointerEvent) {
-    const z = zAt(e);
-    if (dragging === "subject") settings.distance = tidy(Math.max(0.1, z - subject.depth / 2));
-    else if (dragging === "background") settings.bgGap = tidy(Math.max(0.2, z - d - subject.depth / 2));
-    else if (dragging === "focus") settings.focus = tidy(Math.max(0.1, z));
+    const p = worldAt(e);
+    if (dragging === "subject") {
+      if (onField) placeSubject(p);
+      else settings.distance = tidy(Math.max(0.1, aheadOf(p) - subject.depth / 2));
+    } else if (dragging === "camera") {
+      placeCamera(p);
+    } else if (dragging === "background") {
+      settings.bgGap = tidy(Math.max(0.2, aheadOf(p) - d - subject.depth / 2));
+    } else if (dragging === "focus") {
+      settings.focus = tidy(Math.max(0.1, aheadOf(p)));
+    }
   }
 
-  function start(e: PointerEvent, what: "subject" | "background" | "focus") {
+  function start(e: PointerEvent, what: NonNullable<typeof dragging>) {
     e.preventDefault();
     e.stopPropagation();
     frozen = { ...needed };
     dragging = what;
     svg!.setPointerCapture(e.pointerId);
-    apply(e);
+    if (what !== "camera") apply(e);
   }
 
   function end() {
@@ -133,204 +159,147 @@
     e.preventDefault();
   }
 
-  const subjectLabel = $derived(`${subject.name} · ${len(d, prefs.units)}`);
-  const refX = $derived(subject.width / 2 + 0.4 + REFERENCE_PERSON.width / 2);
+  const halo = { "paint-order": "stroke", stroke: "var(--surface-2)", "stroke-width": 3 };
 </script>
 
 <div bind:clientWidth={measured} class="relative select-none">
   <svg
     bind:this={svg}
-    width={width}
+    {width}
     height={layout.height}
     viewBox="0 0 {width} {layout.height}"
-    class="block touch-none {dragging ? 'cursor-grabbing' : 'cursor-crosshair'}"
+    class="block touch-none rounded-lg {dragging ? 'cursor-grabbing' : 'cursor-crosshair'}"
     role="presentation"
     onpointerdown={(e) => start(e, "subject")}
     onpointermove={(e) => dragging && apply(e)}
     onpointerup={end}
     onpointercancel={end}
   >
-    <defs>
-      <clipPath id="map-clip"><rect x="0" y="0" width={width} height={layout.height - 24} /></clipPath>
-    </defs>
-    <rect x="0" y="0" width={width} height={layout.height - 24} class="fill-surface-2" />
+    <rect x="0" y="0" {width} height={layout.height} class="fill-surface-2" />
 
-    <g clip-path="url(#map-clip)">
-      {#if field}
-        <rect
-          x="0"
-          y="0"
-          width={width}
-          height={layout.height - 24}
-          fill={field.surround}
-          opacity="0.85"
-        />
-        {#each field.areas as a, i (i)}
-          <path d={fieldPath(a.pts, true)} fill={a.color} />
-        {/each}
-        {#each field.lines as l, i (i)}
-          <path d={fieldPath(l.pts, l.closed)} stroke={l.color} stroke-width="1.2" fill="none" />
-        {/each}
+    {#if field}
+      <rect x="0" y="0" {width} height={layout.height} fill={field.surround} opacity="0.85" />
+      {#each field.areas as a, i (i)}
+        <path d={path(a.pts)} fill={a.color} />
+      {/each}
+      {#each field.lines as l, i (i)}
+        <path d={path(l.pts, !!l.closed)} stroke={l.color} stroke-width="1.2" fill="none" />
+      {/each}
+    {/if}
+
+    <path d={cone} class="fill-accent/12 stroke-accent" stroke-width="1.2" stroke-linejoin="round" />
+    <path d={zone} class="fill-focus/30" />
+    {#each [m.dof.near, m.dof.far] as z, i (i)}
+      {#if Number.isFinite(z) && z < reach}
+        <path d={path([at(z, -z * tan), at(z, z * tan)], false)} class="stroke-focus" stroke-width="1.5" />
       {/if}
+    {/each}
 
+    <!-- line of sight with distance ticks -->
+    <path d={path([place.camera, at(reach)], false)} class="stroke-ink/25" stroke-width="1" stroke-dasharray="2 3" />
+    <g class="pointer-events-none font-mono text-[10px]">
       {#each ticks as t (t)}
-        <line x1={X(t)} y1="0" x2={X(t)} y2={layout.height - 24} class="stroke-ink/8" stroke-width="1" />
-      {/each}
-
-      <path d={cone} class="fill-accent/12 stroke-accent" stroke-width="1.2" stroke-linejoin="round" />
-      <path d={zone} class="fill-focus/30" />
-      {#each [m.dof.near, m.dof.far] as z, i (i)}
-        {#if Number.isFinite(z) && z < layout.zMax}
-          <line x1={X(z)} y1={Y(-z * tan)} x2={X(z)} y2={Y(z * tan)} class="stroke-focus" stroke-width="1.5" />
+        {@const [x1, y1] = M(at(t, -px(3)))}
+        {@const [x2, y2] = M(at(t, px(3)))}
+        {@const [lx, ly] = M(at(t, px(11)))}
+        {#if lx > -20 && lx < width + 20 && ly > -20 && ly < layout.height + 20}
+          <line {x1} {y1} {x2} {y2} class="stroke-ink-3" />
+          <text x={lx} y={ly + 3} text-anchor="middle" class="fill-ink-2" {...halo}>{len(t, prefs.units)}</text>
         {/if}
       {/each}
+    </g>
 
-      {#if bg !== null && bgOnMap}
-        <g
-          class="cursor-ew-resize"
-          role="presentation"
-          onpointerdown={(e) => start(e, "background")}
-        >
-          <line x1={X(bg)} y1="0" x2={X(bg)} y2={layout.height - 24} stroke="transparent" stroke-width="16" />
-          <line
-            x1={X(bg)}
-            y1="0"
-            x2={X(bg)}
-            y2={layout.height - 24}
-            class="stroke-ink-3"
-            stroke-width="1.5"
-            stroke-dasharray="4 3"
-          />
-          {#each bgMarks as x (x)}
-            {#if settings.background === "trees"}
-              <circle cx={X(bg) + 4} cy={Y(x)} r={Math.max(2.5, Math.min(9, 2.6 * layout.k))} fill="#58745a" opacity="0.8" />
-            {:else}
-              <rect
-                x={X(bg)}
-                y={Y(x) - Math.max(2, 7 * layout.k)}
-                width={Math.max(3, Math.min(20, 12 * layout.k))}
-                height={Math.max(4, 14 * layout.k)}
-                fill="#8c96a1"
-                opacity="0.85"
-              />
-            {/if}
-          {/each}
-        </g>
-      {/if}
-
-      <!-- focus plane -->
-      <g
-        class={settings.focusOnSubject ? "" : "cursor-ew-resize"}
-        role="presentation"
-        onpointerdown={(e) => {
-          if (!settings.focusOnSubject) start(e, "focus");
-        }}
-      >
-        {#if !settings.focusOnSubject}
-          <line x1={X(m.focus)} y1="0" x2={X(m.focus)} y2={layout.height - 24} stroke="transparent" stroke-width="16" />
-        {/if}
-        <line
-          x1={X(m.focus)}
-          y1={Y(-m.focus * tan) - 6}
-          x2={X(m.focus)}
-          y2={Y(m.focus * tan) + 6}
-          class="stroke-ink"
-          stroke-width="1.4"
-          stroke-dasharray="5 3"
-        />
+    {#if bg !== null && bgOnMap}
+      <g class="cursor-ew-resize" role="presentation" onpointerdown={(e) => start(e, "background")}>
+        <path d={path([at(bg, -bgHalf), at(bg, bgHalf)], false)} stroke="transparent" stroke-width="16" />
+        <path d={path([at(bg, -bgHalf), at(bg, bgHalf)], false)} class="stroke-ink-3" stroke-width="1.5" stroke-dasharray="4 3" />
+        {#each bgMarks as x (x)}
+          {@const [cx, cy] = M(at(bg + px(4), x))}
+          {#if settings.background === "trees"}
+            <circle {cx} {cy} r={Math.max(2.5, Math.min(9, 2.6 * layout.k))} fill="#58745a" opacity="0.8" />
+          {:else}
+            <circle {cx} {cy} r={Math.max(2.5, Math.min(8, 5 * layout.k))} fill="#8c96a1" opacity="0.85" />
+          {/if}
+        {/each}
       </g>
+    {/if}
 
-      {#if Number.isFinite(m.dof.hyperfocal) && m.dof.hyperfocal < layout.zMax}
-        <g class="fill-ink-3 text-[10px]">
-          <line x1={X(m.dof.hyperfocal)} y1={cy - 4} x2={X(m.dof.hyperfocal)} y2={cy + 4} class="stroke-ink-3" />
-          <text x={X(m.dof.hyperfocal) + 3} y={cy - 5}>H</text>
-        </g>
+    <!-- focus plane -->
+    <g
+      class={settings.focusOnSubject ? "" : "cursor-ew-resize"}
+      role="presentation"
+      onpointerdown={(e) => {
+        if (!settings.focusOnSubject) start(e, "focus");
+      }}
+    >
+      {#if !settings.focusOnSubject}
+        <path d={path([at(m.focus, -m.focus * tan - px(6)), at(m.focus, m.focus * tan + px(6))], false)} stroke="transparent" stroke-width="16" />
       {/if}
+      <path
+        d={path([at(m.focus, -m.focus * tan - px(6)), at(m.focus, m.focus * tan + px(6))], false)}
+        class="stroke-ink"
+        stroke-width="1.4"
+        stroke-dasharray="5 3"
+      />
+    </g>
 
-      <!-- subject -->
-      <g
-        role="slider"
-        tabindex="0"
-        aria-label="Subject distance"
-        aria-valuenow={d}
-        aria-valuetext={len(d, prefs.units)}
-        class="cursor-ew-resize outline-none focus-visible:[&>rect]:stroke-accent"
-        onpointerdown={(e) => start(e, "subject")}
-        onkeydown={keyMove}
-      >
-        <rect
-          x={X(d)}
-          y={Y(-subject.width / 2)}
-          width={Math.max(3, subject.depth * layout.k)}
-          height={Math.max(3, subject.width * layout.k)}
-          rx="1.5"
-          class="fill-ink stroke-transparent"
-          stroke-width="2"
-        />
-        <rect
-          x={X(d) - 10}
-          y={Y(-subject.width / 2) - 10}
-          width={Math.max(3, subject.depth * layout.k) + 20}
-          height={Math.max(3, subject.width * layout.k) + 20}
-          fill="transparent"
-        />
-      </g>
-      {#if settings.reference && subject.id !== REFERENCE_PERSON.id}
-        <rect
-          x={X(d)}
-          y={Y(refX - REFERENCE_PERSON.width / 2)}
-          width={Math.max(2, REFERENCE_PERSON.depth * layout.k)}
-          height={Math.max(2, REFERENCE_PERSON.width * layout.k)}
-          class="fill-ink-3"
-        />
-      {/if}
+    {#if Number.isFinite(m.dof.hyperfocal) && m.dof.hyperfocal < reach}
+      {@const [hx, hy] = M(at(m.dof.hyperfocal, -px(8)))}
+      <text x={hx} y={hy} text-anchor="middle" class="pointer-events-none fill-ink-3 text-[10px] font-semibold" {...halo}>H</text>
+    {/if}
 
-      <!-- camera -->
-      <g transform="translate({X(0)} {cy})" class="pointer-events-none">
-        <rect x="-13" y="-8" width="11" height="16" rx="2.5" class="fill-ink" />
-        <path d="M-3 -4.5L1.5 -6.5V6.5L-3 4.5Z" class="fill-ink" />
-      </g>
+    <!-- subject -->
+    {#if settings.reference && subject.id !== REFERENCE_PERSON.id}
+      <path
+        d={path([at(d, refX - 0.25), at(d, refX + 0.25), at(d + 0.3, refX + 0.25), at(d + 0.3, refX - 0.25)])}
+        class="pointer-events-none fill-ink-3"
+      />
+    {/if}
+    <g
+      role="slider"
+      tabindex="0"
+      aria-label="Subject distance"
+      aria-valuenow={d}
+      aria-valuetext={len(d, prefs.units)}
+      class="cursor-move outline-none [&:focus-visible>circle]:stroke-accent"
+      onpointerdown={(e) => start(e, "subject")}
+      onkeydown={keyMove}
+    >
+      <circle cx={subjAt[0]} cy={subjAt[1]} r="12" fill="transparent" class="stroke-transparent" stroke-width="2" />
+      <path d={footprint} class="fill-ink" />
+      <circle cx={subjAt[0]} cy={subjAt[1]} r="2.5" class="fill-ink" />
+    </g>
+
+    <!-- camera -->
+    <g
+      transform="translate({camAt[0]} {camAt[1]}) rotate({yawDeg})"
+      class={onField ? "cursor-move" : "pointer-events-none"}
+      role="presentation"
+      onpointerdown={(e) => {
+        if (onField) start(e, "camera");
+      }}
+    >
+      <circle r="14" fill="transparent" />
+      <rect x="-13" y="-8" width="11" height="16" rx="2.5" class="fill-ink" />
+      <path d="M-3 -4.5L1.5 -6.5V6.5L-3 4.5Z" class="fill-ink" />
     </g>
 
     <!-- labels -->
     <g class="pointer-events-none text-[11px] font-medium">
       <text
-        x={Math.min(X(d) + 2, width - 4)}
-        y={Math.max(13, Y(-subject.width / 2) - 7)}
-        text-anchor={X(d) > width * 0.75 ? "end" : "start"}
+        x={Math.min(Math.max(subjAt[0], 40), width - 40)}
+        y={Math.max(13, subjAt[1] - Math.max(12, (subject.width / 2) * layout.k + 8))}
+        text-anchor="middle"
         class="fill-ink"
-        paint-order="stroke"
-        stroke="var(--surface-2)"
-        stroke-width="3">{subjectLabel}</text
+        {...halo}>{subject.name} · {len(d, prefs.units)}</text
       >
-      {#if bg !== null}
-        {#if bgOnMap}
-          <text
-            x={X(bg) - 4}
-            y="13"
-            text-anchor="end"
-            class="fill-ink-2"
-            paint-order="stroke"
-            stroke="var(--surface-2)"
-            stroke-width="3">Background · {len(bg, prefs.units)}</text
-          >
-        {:else}
-          <text x={width - 6} y="13" text-anchor="end" class="fill-ink-2">Background {len(bg, prefs.units)} →</text>
-        {/if}
+      {#if bg !== null && !bgOnMap}
+        <text x={width - 6} y="13" text-anchor="end" class="fill-ink-2">Background {len(bg, prefs.units)} →</text>
       {/if}
-      <text x="6" y={layout.height - 30} class="fill-focus text-[10px]" paint-order="stroke" stroke="var(--surface-2)" stroke-width="3"
-        >In focus {len(m.dof.near, prefs.units)} – {len(m.dof.far, prefs.units)}</text
-      >
-    </g>
-
-    <!-- ruler -->
-    <g class="text-[10px]">
-      <line x1="0" y1={layout.height - 24} x2={width} y2={layout.height - 24} class="stroke-line-strong" />
-      {#each ticks as t (t)}
-        <line x1={X(t)} y1={layout.height - 24} x2={X(t)} y2={layout.height - 19} class="stroke-ink-3" />
-        <text x={X(t)} y={layout.height - 7} text-anchor="middle" class="fill-ink-3 font-mono">{len(t, prefs.units)}</text>
-      {/each}
-      <text x={X(0)} y={layout.height - 7} text-anchor="middle" class="fill-ink-3 font-mono">0</text>
     </g>
   </svg>
+  <p class="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-ink-3">
+    <span><span class="font-medium text-focus">In focus {len(m.dof.near, prefs.units)} – {len(m.dof.far, prefs.units)}</span>{#if bg !== null} · background at {len(bg, prefs.units)}{/if}</span>
+    <span>{onField ? "Drag the camera or the subject anywhere on the field" : "Drag the subject or the background"}</span>
+  </p>
 </div>

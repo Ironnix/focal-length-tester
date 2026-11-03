@@ -1,8 +1,8 @@
 <script lang="ts">
   import { FIELD_NAMES, type FieldId } from "~/lib/fields";
   import type { Background } from "~/lib/settings";
-  import { live, prefs, settings } from "~/lib/store.svelte";
-  import { fromDisplay, len, lenUnit, toDisplay } from "~/lib/units";
+  import { live, prefs, setField, settings } from "~/lib/store.svelte";
+  import { fromDisplay, len, lenUnit, roundSig, toDisplay } from "~/lib/units";
   import Field from "../ui/Field.svelte";
   import NumberField from "../ui/NumberField.svelte";
   import Section from "../ui/Section.svelte";
@@ -12,10 +12,7 @@
   import Toggle from "../ui/Toggle.svelte";
 
   const m = $derived(live.model);
-  const sig3 = (v: number) => {
-    const p = 10 ** (Math.floor(Math.log10(v)) - 1);
-    return Math.round(v / p) * p;
-  };
+  const sig2 = (v: number) => roundSig(v, 2);
 </script>
 
 <Section title="Scene">
@@ -38,7 +35,7 @@
           min={0.5}
           max={2000}
           scale="log"
-          round={sig3}
+          round={sig2}
           onchange={(v) => (settings.bgGap = v)}
         />
         <NumberField
@@ -62,7 +59,7 @@
         value: id,
         label: id === "none" ? "Plain ground with grid" : FIELD_NAMES[id],
       }))}
-      onchange={(v) => (settings.field = v as FieldId)}
+      onchange={(v) => setField(v as FieldId)}
     />
   </Field>
 
@@ -81,7 +78,7 @@
           min={0.05}
           max={200}
           scale="log"
-          round={sig3}
+          round={sig2}
           onchange={(v) => (settings.camHeight = v)}
         />
         <NumberField

@@ -16,7 +16,9 @@ lens, on this sensor? And what is in focus?
 - **Preview:** a drawn scene in perspective with per-depth blur (depth of field), the in-focus zone
   on the ground, distance labels, rule of thirds and smaller-sensor frame lines.
 - **Top view:** camera, field of view, in-focus zone, subject and background to scale; drag
-  the subject or the background to change distances.
+  the subject or the background to change distances. On a sports field you can put the camera and
+  the subject anywhere (or pick end line, behind the end, corner, side line) — the camera turns to
+  the subject and the preview shows the field from there.
 - **Numbers:** subject share of the frame (height, width, area), frame size at the subject, angles
   of view, near/far limits, hyperfocal distance, blur in pixels, pixels on the subject,
   diffraction, full-frame equivalents — and "fit the subject" (which focal length or distance).

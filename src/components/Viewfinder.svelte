@@ -3,7 +3,6 @@
   import ScanLine from "@lucide/svelte/icons/scan-line";
   import Frame from "@lucide/svelte/icons/frame";
   import Ruler from "@lucide/svelte/icons/ruler";
-  import Crop from "@lucide/svelte/icons/crop";
   import { fmtAperture, SENSORS } from "~/lib/camera";
   import { sensorOutline } from "~/lib/scene";
   import { live, prefs, settings } from "~/lib/store.svelte";
@@ -20,7 +19,6 @@
   const scene = $derived(live.scene);
   const m = $derived(live.model);
   const aspect = $derived(scene.view.w / scene.view.h);
-  const cropped = $derived(scene.view.w !== scene.crop.w || scene.view.h !== scene.crop.h);
 
   // Smaller formats that fit inside this picture, at the same focal length.
   const OVERLAY_SENSORS = ["mf44", "ff", "apsc", "apsc-canon", "mft", "1in", "s35"];
@@ -36,8 +34,7 @@
     { key: "thirds", label: "Rule of thirds", icon: Grid3x3 },
     { key: "focusZone", label: "Focus zone", icon: ScanLine },
     { key: "labels", label: "Distance labels", icon: Ruler },
-    { key: "sensorFrames", label: "Smaller sensors", icon: Frame },
-    { key: "outsideCrop", label: "Show area outside crop", icon: Crop },
+    { key: "sensorFrames", label: "Frame lines of smaller sensors (same lens)", icon: Frame },
   ] as const);
 
   const caption = $derived(
@@ -50,8 +47,7 @@
     <p class="truncate font-mono text-xs text-ink-2 tabular-nums">{caption}</p>
     <div class="flex shrink-0 gap-0.5" role="group" aria-label="Overlays">
       {#each tools as t (t.key)}
-        {#if t.key !== "outsideCrop" || cropped || settings.outsideCrop === false}
-          <button
+        <button
             type="button"
             class="grid size-8 place-items-center rounded-md transition-colors {settings[t.key]
               ? 'bg-accent-soft text-accent-ink'
@@ -63,7 +59,6 @@
           >
             <t.icon class="size-4" />
           </button>
-        {/if}
       {/each}
     </div>
   </div>
@@ -77,6 +72,7 @@
       {scene}
       thirds={settings.thirds}
       {frames}
+      ownLabel={frames.length ? `${m.sensor.short} (yours)` : ""}
       label="Preview: {live.subject.name} at {len(settings.distance, prefs.units)} with {num(m.focal, 0)} mm"
     />
   </div>
