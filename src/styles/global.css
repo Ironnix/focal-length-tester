@@ -1,0 +1,159 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Neutral, flat UI: cool greys, one teal accent, green only for "in focus".
+  Tokens switch with the .dark class on <html> (set before first paint in Base.astro).
+*/
+:root {
+  --bg: oklch(0.975 0.004 240);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.962 0.005 240);
+  --surface-3: oklch(0.93 0.007 240);
+  --line: oklch(0.905 0.007 240);
+  --line-strong: oklch(0.83 0.01 240);
+  --ink: oklch(0.21 0.015 250);
+  --ink-2: oklch(0.42 0.015 250);
+  --ink-3: oklch(0.57 0.012 250);
+  --accent: oklch(0.6 0.115 192);
+  --accent-strong: oklch(0.52 0.11 194);
+  --accent-soft: oklch(0.95 0.03 190);
+  --accent-ink: oklch(0.42 0.08 196);
+  --focus: oklch(0.62 0.15 150);
+  --warn: oklch(0.62 0.15 55);
+  --viewfinder: oklch(0.2 0.01 250);
+}
+
+.dark {
+  --bg: oklch(0.165 0.008 250);
+  --surface: oklch(0.205 0.01 250);
+  --surface-2: oklch(0.235 0.011 250);
+  --surface-3: oklch(0.275 0.012 250);
+  --line: oklch(0.29 0.012 250);
+  --line-strong: oklch(0.37 0.014 250);
+  --ink: oklch(0.95 0.005 250);
+  --ink-2: oklch(0.79 0.01 250);
+  --ink-3: oklch(0.64 0.012 250);
+  --accent: oklch(0.76 0.115 190);
+  --accent-strong: oklch(0.82 0.11 188);
+  --accent-soft: oklch(0.3 0.05 195);
+  --accent-ink: oklch(0.85 0.09 188);
+  --focus: oklch(0.74 0.15 150);
+  --warn: oklch(0.78 0.14 65);
+  --viewfinder: oklch(0.12 0.006 250);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-focus: var(--focus);
+  --color-warn: var(--warn);
+  --color-viewfinder: var(--viewfinder);
+
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  select,
+  label:has(input[type="checkbox"]) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+/* Range slider: thin track, filled up to the thumb via --fill (0–100%). */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.5rem;
+  background: transparent;
+  --fill: 50%;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--fill), var(--surface-3) var(--fill));
+}
+.range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+.range::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+}
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+}
+.range:focus-visible {
+  outline: none;
+}
+.range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}

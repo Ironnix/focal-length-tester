@@ -1,0 +1,16 @@
+---
+import Base from "~/layouts/Base.astro";
+import App from "~/components/App.svelte";
+---
+
+<Base
+  title="Focal Length Tester"
+  description="See how large a person, cat, car or plane appears in your frame at any distance and focal length — with depth of field, sensor sizes, crops and anamorphic lenses."
+>
+  <App client:only="svelte">
+    <div slot="fallback" class="grid min-h-dvh place-items-center text-sm text-ink-3">Loading…</div>
+  </App>
+  <noscript>
+    <p style="padding: 2rem; text-align: center">This tool needs JavaScript.</p>
+  </noscript>
+</Base>

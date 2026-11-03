@@ -1,0 +1,30 @@
+{
+  "name": "focal-length-tester",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bunx --bun astro dev --host",
+    "build": "bun run check && bunx --bun astro build",
+    "preview": "bunx --bun astro preview --host",
+    "check": "bunx --bun astro check && bunx --bun svelte-check --tsconfig ./tsconfig.json",
+    "test": "bun test",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/svelte": "^9.1.2",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@lucide/svelte": "^1.67.0",
+    "@tailwindcss/vite": "^4.3.4",
+    "astro": "^7.4.5",
+    "svelte": "^5.57.3",
+    "tailwindcss": "^4.3.4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@types/bun": "^1.4.4",
+    "svelte-check": "^4.7.8",
+    "typescript": "^6.0.3"
+  }
+}
