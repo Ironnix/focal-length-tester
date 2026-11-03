@@ -1,6 +1,6 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
-  import { live, prefs, resetSettings, ui, type Tab } from "~/lib/store.svelte";
+  import { compare, live, prefs, resetSettings, ui, type Tab } from "~/lib/store.svelte";
   import { len, pct } from "~/lib/units";
   import CameraPanel from "./controls/CameraPanel.svelte";
   import DistancePanel from "./controls/DistancePanel.svelte";
@@ -13,7 +13,8 @@
   import Header from "./Header.svelte";
   import StatTiles from "./StatTiles.svelte";
   import TopView from "./TopView.svelte";
-  import Viewfinder from "./Viewfinder.svelte";
+  import PreviewArea from "./PreviewArea.svelte";
+  import CompareTable from "./CompareTable.svelte";
 
   const desktop = new MediaQuery("min-width: 1024px");
 
@@ -66,21 +67,23 @@
 <main class="mx-auto max-w-[1500px] px-4 pb-10 sm:px-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,390px)] lg:gap-6 lg:pt-5">
   <div class="min-w-0 space-y-4">
     {#if desktop.current}
-      <Viewfinder maxHeight="54vh" />
+      <PreviewArea maxHeight="54vh" compareMaxHeight="44vh" />
       {@render topView()}
-      <StatTiles />
+      {#if compare.on}<CompareTable />{:else}<StatTiles />{/if}
     {:else}
       <!-- On phones the picture stays on screen while the controls scroll beneath it. -->
       <div>
         <div class="sticky top-0 z-20 -mx-4 border-b border-line bg-bg/95 px-4 pt-3 backdrop-blur sm:-mx-6 sm:px-6">
-          <Viewfinder maxHeight="32vh" />
-          <p class="mt-1.5 truncate text-center font-mono text-[11px] text-ink-2 tabular-nums">{quick}</p>
+          <PreviewArea maxHeight="32vh" compareMaxHeight="26vh" />
+          {#if !compare.on}
+            <p class="mt-1.5 truncate text-center font-mono text-[11px] text-ink-2 tabular-nums">{quick}</p>
+          {/if}
           {@render tabBar("mt-1 mb-2")}
         </div>
         <div class="pt-3">{@render panel(ui.tab)}</div>
       </div>
       {@render topView()}
-      <StatTiles />
+      {#if compare.on}<CompareTable />{:else}<StatTiles />{/if}
     {/if}
 
     <section class="rounded-2xl border border-line bg-surface p-4">
@@ -91,6 +94,11 @@
       <FocalStrip />
     </section>
 
+    {#if compare.on}
+      <p class="-mb-2 px-1 text-xs text-ink-3">
+        Below: details for setup <span class="font-semibold text-ink">{compare.side.toUpperCase()}</span>, the one you are editing.
+      </p>
+    {/if}
     <Details />
 
     <footer class="space-y-2 px-1 pt-2 text-xs leading-relaxed text-ink-3">

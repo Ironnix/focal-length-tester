@@ -1,10 +1,13 @@
 // The app's one state: settings (what the shot is), prefs (units, theme) and the custom
 // subjects. Everything is kept in localStorage; a shared link (?f=85&d=12…) wins once on load.
+//
+// Compare mode keeps a second shot in `compare.other`. `settings` is always the setup being
+// edited (so every control just edits `settings`); switching A/B swaps the two shots.
 
-import { measureCoverage } from "./coverage";
-import { compute } from "./model";
-import { buildScene } from "./scene";
-import { DEFAULT_SETTINGS, fromQuery, isShape, sanitize, toQuery, type Settings } from "./settings";
+import { measureCoverage, type Coverage } from "./coverage";
+import { compute, type Model } from "./model";
+import { buildScene, type Scene } from "./scene";
+import { DEFAULT_SETTINGS, fromQuery, isShape, sanitize, SHOT_KEYS, toQuery, type Settings } from "./settings";
 import { PRESET_SUBJECTS, type Subject } from "./subjects";
 import { roundSig, type Units } from "./units";
 import type { DistancePreset } from "./presets";
@@ -21,6 +24,7 @@ interface Prefs {
 const SETTINGS_KEY = "flt:settings";
 const PREFS_KEY = "flt:prefs";
 const CUSTOM_KEY = "flt:custom";
+const COMPARE_KEY = "flt:compare";
 
 function read(key: string): unknown {
   try {
@@ -62,7 +66,9 @@ const storedCustom = browser
   ? (Array.isArray(read(CUSTOM_KEY)) ? (read(CUSTOM_KEY) as unknown[]) : []).map(validSubject).filter((s) => s !== null)
   : [];
 const shared = browser ? fromQuery(location.search.slice(1)) : null;
-if (shared?.custom && !storedCustom.some((c) => c.id === shared.custom!.id)) storedCustom.push(shared.custom);
+for (const c of [shared?.custom, shared?.versus?.custom]) {
+  if (c && !storedCustom.some((s) => s.id === c.id)) storedCustom.push(c);
+}
 if (shared) history.replaceState(null, "", location.pathname + location.hash);
 
 const storedPrefs = (browser ? read(PREFS_KEY) : null) as Partial<Prefs> | null;
@@ -78,23 +84,84 @@ export const prefs: Prefs = $state({
 
 export const library: { custom: Subject[] } = $state({ custom: storedCustom });
 
+type Side = "a" | "b";
+const storedCompare = (browser ? read(COMPARE_KEY) : null) as { on?: unknown; side?: unknown; other?: unknown } | null;
+
+export const compare: { on: boolean; side: Side; other: Settings } = $state(
+  shared
+    ? { on: !!shared.versus, side: "a", other: shared.versus?.settings ?? { ...settings } }
+    : {
+        on: storedCompare?.on === true,
+        side: storedCompare?.side === "b" ? "b" : "a",
+        other: storedCompare?.other ? sanitize(storedCompare.other as Partial<Settings>) : { ...settings },
+      },
+);
+
 export function findSubject(id: string): Subject {
   return (
     PRESET_SUBJECTS.find((s) => s.id === id) ?? library.custom.find((s) => s.id === id) ?? PRESET_SUBJECTS[0]!
   );
 }
 
-class Live {
-  subject = $derived(findSubject(settings.subject));
-  model = $derived(compute(settings, this.subject));
-  scene = $derived(buildScene(settings, this.subject, this.model, { units: prefs.units }));
-  coverage = $derived(measureCoverage(this.scene.subject.solid, this.scene.crop, this.scene.subject.box));
+export interface Analysis {
+  settings: Settings;
+  subject: Subject;
+  model: Model;
+  scene: Scene;
+  coverage: Coverage;
   /** Subject size relative to the picture, from the drawn silhouette (matches the preview). */
-  fill = $derived.by(() => {
-    const box = this.scene.subject.box;
-    const crop = this.scene.crop;
-    return box ? { w: box.w / crop.w, h: box.h / crop.h } : this.model.fill;
-  });
+  fill: { w: number; h: number };
+}
+
+function analyse(s: Settings): Analysis {
+  const subject = findSubject(s.subject);
+  const model = compute(s, subject);
+  const scene = buildScene(s, subject, model, { units: prefs.units });
+  const box = scene.subject.box;
+  return {
+    settings: s,
+    subject,
+    model,
+    scene,
+    coverage: measureCoverage(scene.subject.solid, scene.crop, box),
+    fill: box ? { w: box.w / scene.crop.w, h: box.h / scene.crop.h } : model.fill,
+  };
+}
+
+/** The other setup with this setup's view toggles (overlays are shared). */
+function otherShot(): Settings {
+  const s: Settings = { ...settings };
+  for (const k of SHOT_KEYS) (s as unknown as Record<string, unknown>)[k] = compare.other[k];
+  return s;
+}
+
+class Live {
+  /** The setup being edited. */
+  current = $derived(analyse(settings));
+  other = $derived(compare.on ? analyse(otherShot()) : null);
+  get subject() {
+    return this.current.subject;
+  }
+  get model() {
+    return this.current.model;
+  }
+  get scene() {
+    return this.current.scene;
+  }
+  get coverage() {
+    return this.current.coverage;
+  }
+  get fill() {
+    return this.current.fill;
+  }
+  /** Setups A and B in compare mode (A only otherwise). */
+  get a(): Analysis {
+    return compare.side === "a" || !this.other ? this.current : this.other;
+  }
+  get b(): Analysis | null {
+    if (!this.other) return null;
+    return compare.side === "a" ? this.other : this.current;
+  }
 }
 
 export const live = new Live();
@@ -150,10 +217,46 @@ export function deleteCustomSubject(id: string) {
 
 export function resetSettings() {
   Object.assign(settings, DEFAULT_SETTINGS);
+  compare.on = false;
+  compare.side = "a";
+  compare.other = { ...DEFAULT_SETTINGS };
+}
+
+// ---- compare mode -----------------------------------------------------------------------
+
+function swapShots() {
+  const a = settings as unknown as Record<string, unknown>;
+  const b = compare.other as unknown as Record<string, unknown>;
+  for (const k of SHOT_KEYS) [a[k], b[k]] = [b[k], a[k]];
+}
+
+/** Turning compare on starts B as a copy of A; turning it off keeps A. */
+export function setCompare(on: boolean) {
+  if (on === compare.on) return;
+  if (on) {
+    compare.other = $state.snapshot(settings);
+    compare.side = "a";
+  } else if (compare.side === "b") {
+    swapShots();
+    compare.side = "a";
+  }
+  compare.on = on;
+}
+
+export function editSide(side: Side) {
+  if (!compare.on || side === compare.side) return;
+  swapShots();
+  compare.side = side;
+}
+
+/** Copies the edited setup onto the other one. */
+export function copyToOther() {
+  for (const k of SHOT_KEYS) (compare.other as unknown as Record<string, unknown>)[k] = settings[k];
 }
 
 export function shareUrl(): string {
-  const q = toQuery(settings, live.subject);
+  const { a, b } = live;
+  const q = toQuery(a.settings, a.subject, b ? { settings: b.settings, subject: b.subject } : undefined);
   return `${location.origin}${location.pathname}${q ? `?${q}` : ""}`;
 }
 
@@ -190,6 +293,9 @@ if (browser) {
     });
     $effect(() => {
       write(CUSTOM_KEY, $state.snapshot(library.custom));
+    });
+    $effect(() => {
+      write(COMPARE_KEY, $state.snapshot(compare));
     });
   });
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(prefs.theme));

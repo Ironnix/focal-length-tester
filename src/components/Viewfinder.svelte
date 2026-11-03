@@ -1,79 +1,71 @@
 <script lang="ts">
-  import Grid3x3 from "@lucide/svelte/icons/grid-3x3";
-  import ScanLine from "@lucide/svelte/icons/scan-line";
-  import Frame from "@lucide/svelte/icons/frame";
-  import Ruler from "@lucide/svelte/icons/ruler";
   import { fmtAperture, SENSORS } from "~/lib/camera";
   import { sensorOutline } from "~/lib/scene";
-  import { live, prefs, settings } from "~/lib/store.svelte";
+  import { prefs, settings, type Analysis } from "~/lib/store.svelte";
   import { len, num } from "~/lib/units";
   import SceneSvg from "./SceneSvg.svelte";
 
   interface Props {
+    view: Analysis;
     /** Height limit for the picture, CSS length. */
     maxHeight?: string;
+    /** Compare mode: "A"/"B" badge, highlighted while being edited, click to edit. */
+    badge?: string;
+    active?: boolean;
+    onselect?: () => void;
   }
 
-  let { maxHeight = "62vh" }: Props = $props();
+  let { view, maxHeight = "62vh", badge, active = false, onselect }: Props = $props();
 
-  const scene = $derived(live.scene);
-  const m = $derived(live.model);
+  const scene = $derived(view.scene);
+  const m = $derived(view.model);
   const aspect = $derived(scene.view.w / scene.view.h);
 
   // Smaller formats that fit inside this picture, at the same focal length.
   const OVERLAY_SENSORS = ["mf44", "ff", "apsc", "apsc-canon", "mft", "1in", "s35"];
   const frames = $derived.by(() => {
     if (!settings.sensorFrames) return [];
-    return SENSORS.filter((s) => OVERLAY_SENSORS.includes(s.id) && s.id !== settings.sensor)
-      .map((s) => ({ rect: sensorOutline(s.w, s.h, m.frame.squeeze, m.frame.portrait), label: s.short, id: s.id }))
+    return SENSORS.filter((s) => OVERLAY_SENSORS.includes(s.id) && s.id !== view.settings.sensor)
+      .map((s) => ({ rect: sensorOutline(s.w, s.h, m.frame.squeeze, m.frame.portrait), label: s.short }))
       .filter((f) => f.rect.w < scene.view.w * 0.995 && f.rect.h < scene.view.h * 0.995)
       .filter((f, i, all) => all.findIndex((o) => o.label === f.label) === i);
   });
 
-  const tools = $derived([
-    { key: "thirds", label: "Rule of thirds", icon: Grid3x3 },
-    { key: "focusZone", label: "Focus zone", icon: ScanLine },
-    { key: "labels", label: "Distance labels", icon: Ruler },
-    { key: "sensorFrames", label: "Frame lines of smaller sensors (same lens)", icon: Frame },
-  ] as const);
-
-  const caption = $derived(
-    `${num(m.focal, 0)} mm · ${fmtAperture(m.aperture)} · ${len(settings.distance, prefs.units)} · ${m.sensor.short} ${m.aspectLabel === "Native" ? "" : m.aspectLabel}${m.frame.squeeze > 1 ? ` · ${m.frame.squeeze}× anamorphic` : ""}`,
-  );
+  // Short: the compare table below lists sensor and crop.
+  const caption = $derived(`${num(m.focal, 0)} mm · ${fmtAperture(m.aperture)} · ${len(view.settings.distance, prefs.units)}`);
+  const alt = $derived(`Preview: ${view.subject.name} at ${len(view.settings.distance, prefs.units)} with ${num(m.focal, 0)} mm`);
 </script>
 
-<div class="space-y-2">
-  <div class="flex items-center justify-between gap-2">
-    <p class="truncate font-mono text-xs text-ink-2 tabular-nums">{caption}</p>
-    <div class="flex shrink-0 gap-0.5" role="group" aria-label="Overlays">
-      {#each tools as t (t.key)}
-        <button
-            type="button"
-            class="grid size-8 place-items-center rounded-md transition-colors {settings[t.key]
-              ? 'bg-accent-soft text-accent-ink'
-              : 'text-ink-3 hover:bg-surface-2 hover:text-ink'}"
-            aria-pressed={settings[t.key]}
-            aria-label={t.label}
-            title={t.label}
-            onclick={() => (settings[t.key] = !settings[t.key])}
-          >
-            <t.icon class="size-4" />
-          </button>
-      {/each}
-    </div>
-  </div>
-
+{#snippet picture()}
   <div
-    class="relative mx-auto overflow-hidden rounded-xl bg-viewfinder ring-1 ring-line"
+    class="relative mx-auto overflow-hidden rounded-xl bg-viewfinder ring-1 {active ? 'ring-2 ring-accent' : 'ring-line'}"
     style:aspect-ratio="{scene.view.w} / {scene.view.h}"
     style:max-width="min(100%, calc({maxHeight} * {aspect}))"
   >
-    <SceneSvg
-      {scene}
-      thirds={settings.thirds}
-      {frames}
-      ownLabel={frames.length ? `${m.sensor.short} (yours)` : ""}
-      label="Preview: {live.subject.name} at {len(settings.distance, prefs.units)} with {num(m.focal, 0)} mm"
-    />
+    <SceneSvg {scene} thirds={settings.thirds} {frames} ownLabel={frames.length ? `${m.sensor.short} (yours)` : ""} label={alt} />
+    {#if badge}
+      <span
+        class="absolute top-2 left-2 grid size-6 place-items-center rounded-md text-xs font-bold {active
+          ? 'bg-accent text-white dark:text-black'
+          : 'bg-black/55 text-white'}">{badge}</span
+      >
+    {/if}
   </div>
-</div>
+{/snippet}
+
+{#if onselect}
+  <button
+    type="button"
+    class="block w-full text-left"
+    aria-pressed={active}
+    aria-label="Setup {badge}: {caption}{active ? ' (editing)' : ', tap to edit'}"
+    onclick={onselect}
+  >
+    {@render picture()}
+    <p class="mt-1.5 truncate text-center font-mono text-[11px] tabular-nums {active ? 'text-accent-ink' : 'text-ink-3'}">
+      {caption}
+    </p>
+  </button>
+{:else}
+  {@render picture()}
+{/if}

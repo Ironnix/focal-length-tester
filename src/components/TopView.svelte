@@ -4,7 +4,7 @@
   // always turns to face the subject.
   import { getField } from "~/lib/fields";
   import { along, placement, type P } from "~/lib/placement";
-  import { live, placeCamera, placeSubject, prefs, settings, tidy } from "~/lib/store.svelte";
+  import { compare, live, placeCamera, placeSubject, prefs, settings, tidy } from "~/lib/store.svelte";
   import { REFERENCE_PERSON } from "~/lib/subjects";
   import { len, niceStepFor } from "~/lib/units";
 
@@ -20,6 +20,24 @@
   const place = $derived(placement(settings));
   const tan = $derived(m.frame.width / 2 / m.projection);
   const at = (ahead: number, side = 0) => along(place, ahead, side);
+
+  // Compare mode: the other setup drawn as an outline, when it stands on the same ground.
+  const ghost = $derived.by(() => {
+    const o = live.other;
+    if (!o || o.settings.field !== settings.field) return null;
+    const p = placement(o.settings);
+    const t = o.model.frame.width / 2 / o.model.projection;
+    const d = o.settings.distance;
+    const w = o.subject.width / 2;
+    return {
+      label: compare.side === "a" ? "B" : "A",
+      place: p,
+      tan: t,
+      camera: p.camera,
+      subject: along(p, d + o.subject.depth / 2),
+      footprint: [along(p, d, -w), along(p, d, w), along(p, d + o.subject.depth, w), along(p, d + o.subject.depth, -w)] as P[],
+    };
+  });
 
   // Everything the map has to show, as a box in field coordinates.
   const needed = $derived.by(() => {
@@ -39,6 +57,7 @@
     if (field) {
       pts.push([-field.width / 2 - 2, -2], [field.width / 2 + 2, field.length + 2]);
     }
+    if (ghost) pts.push(ghost.camera, ...ghost.footprint);
     const xs = pts.map((p) => p[0]);
     const zs = pts.map((p) => p[1]);
     return { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
@@ -185,6 +204,22 @@
       {#each field.lines as l, i (i)}
         <path d={path(l.pts, !!l.closed)} stroke={l.color} stroke-width="1.2" fill="none" />
       {/each}
+    {/if}
+
+    {#if ghost}
+      {@const g = ghost}
+      {@const r = reach + Math.hypot(g.camera[0] - place.camera[0], g.camera[1] - place.camera[1])}
+      <g class="pointer-events-none">
+        <path
+          d={path([g.camera, along(g.place, r, -r * g.tan), along(g.place, r, r * g.tan)])}
+          class="fill-warn/8 stroke-warn"
+          stroke-width="1.2"
+          stroke-dasharray="5 3"
+        />
+        <path d={path(g.footprint)} class="fill-none stroke-warn" stroke-width="1.5" />
+        <circle cx={M(g.camera)[0]} cy={M(g.camera)[1]} r="7" class="fill-surface stroke-warn" stroke-width="2" />
+        <text x={M(g.camera)[0]} y={M(g.camera)[1] + 3.5} text-anchor="middle" class="fill-warn text-[10px] font-bold">{g.label}</text>
+      </g>
     {/if}
 
     <path d={cone} class="fill-accent/12 stroke-accent" stroke-width="1.2" stroke-linejoin="round" />

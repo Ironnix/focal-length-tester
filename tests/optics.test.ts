@@ -112,6 +112,17 @@ describe("share links", () => {
     expect(back?.settings.portrait).toBe(true);
   });
 
+  test("compare links carry both setups", () => {
+    const a = { ...DEFAULT_SETTINGS, focal: 24, distance: 8 };
+    const b = { ...DEFAULT_SETTINGS, focal: 400, distance: 120, sensor: "apsc" };
+    const back = fromQuery(toQuery(a, PRESET_SUBJECTS[0]!, { settings: b, subject: PRESET_SUBJECTS[0]! }))!;
+    expect(back.settings.focal).toBe(24);
+    expect(back.versus?.settings.focal).toBe(400);
+    expect(back.versus?.settings.sensor).toBe("apsc");
+    // B equal to the defaults still counts as a compare link
+    expect(fromQuery(toQuery(DEFAULT_SETTINGS, PRESET_SUBJECTS[0]!, { settings: DEFAULT_SETTINGS, subject: PRESET_SUBJECTS[0]! }))?.versus).not.toBeNull();
+  });
+
   test("ignores unrelated query strings", () => {
     expect(fromQuery("utm_source=x")).toBeNull();
   });
@@ -149,7 +160,7 @@ describe("placement on a field", () => {
   });
 
   test("without a field the position is ignored", () => {
-    const p = placement({ ...DEFAULT_SETTINGS, camX: 20, yaw: 45 });
+    const p = placement({ ...DEFAULT_SETTINGS, field: "none", camX: 20, yaw: 45 });
     expect(p.camera).toEqual([0, 0]);
     expect(p.forward[0]).toBeCloseTo(0);
   });

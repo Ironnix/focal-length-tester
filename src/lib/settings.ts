@@ -45,11 +45,11 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   subject: "person",
-  distance: 10,
-  focal: 50,
+  distance: 52.5,
+  focal: 200,
   aperture: 2.8,
   focusOnSubject: true,
-  focus: 10,
+  focus: 52.5,
   sensor: "ff",
   sensorW: 36,
   sensorH: 24,
@@ -62,8 +62,8 @@ export const DEFAULT_SETTINGS: Settings = {
   camHeightAuto: true,
   camHeight: 1.6,
   background: "trees",
-  bgGap: 20,
-  field: "none",
+  bgGap: 62,
+  field: "football",
   camX: 0,
   camZ: 0,
   yaw: 0,
@@ -175,7 +175,16 @@ const KEYS: [keyof Settings, string][] = [
   ["reference", "r"],
 ];
 
-export function toQuery(s: Settings, subject: Subject): string {
+/** Settings that describe a shot; compare mode keeps one set per setup. */
+export const SHOT_KEYS: (keyof Settings)[] = KEYS.map(([key]) => key);
+
+export interface Shared {
+  settings: Settings;
+  custom: Subject | null;
+}
+
+/** Query string for a shot; `versus` adds the second setup of compare mode. */
+export function toQuery(s: Settings, subject: Subject, versus?: { settings: Settings; subject: Subject }): string {
   const q = new URLSearchParams();
   for (const [key, short] of KEYS) {
     const v = s[key];
@@ -189,12 +198,13 @@ export function toQuery(s: Settings, subject: Subject): string {
     q.set("cd", String(subject.depth));
     q.set("cs", subject.shape);
   }
+  if (versus) q.set("vs", toQuery(versus.settings, versus.subject) || "_");
   return q.toString();
 }
 
-export function fromQuery(query: string): { settings: Settings; custom: Subject | null } | null {
+export function fromQuery(query: string): (Shared & { versus: Shared | null }) | null {
   const q = new URLSearchParams(query);
-  if (![...q.keys()].some((k) => KEYS.some(([, short]) => short === k))) return null;
+  if (![...q.keys()].some((k) => k === "vs" || KEYS.some(([, short]) => short === k))) return null;
   const raw: Partial<Record<keyof Settings, unknown>> = {};
   for (const [key, short] of KEYS) {
     const v = q.get(short);
@@ -217,6 +227,8 @@ export function fromQuery(query: string): { settings: Settings; custom: Subject 
       custom: true,
     };
   }
-  return { settings: sanitize(raw), custom };
+  const vs = q.get("vs");
+  const versus = vs ? (fromQuery(vs) ?? { settings: sanitize({}), custom: null }) : null;
+  return { settings: sanitize(raw), custom, versus: versus && { settings: versus.settings, custom: versus.custom } };
 }
 

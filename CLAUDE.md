@@ -24,6 +24,12 @@ workflow sets `BASE_PATH=/focal-length-tester`; public files must be linked thro
   `subject`, `model`, `scene`, `coverage`, `fill`. Persisted to localStorage (`flt:settings`,
   `flt:prefs`, `flt:custom`). A shared link (`?f=85&d=12…`, short keys in `settings.ts`) is applied
   once on load and removed from the address bar.
+- **Compare mode:** `compare` in the store holds the second shot (`compare.other`); `settings` is always
+  the setup being edited, and switching A/B swaps the shot keys (`SHOT_KEYS` = the share-link keys;
+  overlay toggles stay shared). `live.current` / `live.other` are full `Analysis` objects
+  (subject, model, scene, coverage, fill); `live.a` / `live.b` order them. Share links add B as `vs=`.
+  UI: `PreviewArea` (one or two `Viewfinder`s + `ViewTools`), `CompareTable`, the other setup as an
+  orange ghost in `TopView` (same ground only).
 - **Units:** lengths are always metres internally; `units.ts` formats m/ft and converts inputs.
 - `src/lib/settings.ts` — `Settings` type, defaults, `sanitize()` (clamps anything loaded), share-link encode/decode.
 - `src/lib/optics.ts` — pure thin-lens maths: frame (crop, squeeze, orientation), angle of view,
@@ -53,6 +59,10 @@ workflow sets `BASE_PATH=/focal-length-tester`; public files must be linked thro
   (< 1024 px, `MediaQuery`). The top view sits right under the preview.
 - The preview always shows exactly the delivered picture (sensor area after the aspect crop) —
   Ralf wants it to look like the photo; frame lines of smaller sensors are an optional overlay.
+
+## Plans
+- `docs/real-places-plan.md` — real places / Google 3D background (plan only; Google's raw 3D tiles
+  are blocked for EEA billing, the `<gmp-map-3d>` view is not).
 
 ## Conventions
 - Look: flat and simple — no gradients, glow or glossy effects (Ralf's preference). Colour tokens

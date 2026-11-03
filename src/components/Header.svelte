@@ -4,7 +4,8 @@
   import Sun from "@lucide/svelte/icons/sun";
   import Moon from "@lucide/svelte/icons/moon";
   import Monitor from "@lucide/svelte/icons/monitor";
-  import { prefs, resetSettings, shareUrl, toast, type Theme } from "~/lib/store.svelte";
+  import Columns2 from "@lucide/svelte/icons/columns-2";
+  import { compare, prefs, resetSettings, setCompare, shareUrl, toast, type Theme } from "~/lib/store.svelte";
   import Logo from "./Logo.svelte";
 
   const next: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
@@ -34,14 +35,25 @@
       <h1 class="truncate text-sm leading-tight font-semibold tracking-tight sm:text-[15px]">Focal Length Tester</h1>
       <p class="hidden truncate text-xs text-ink-3 sm:block">How big does it look — and what is in focus?</p>
     </div>
-    <div class="ml-auto flex items-center gap-1">
-      <div class="mr-1 flex rounded-lg bg-surface-2 p-0.5 text-xs font-medium" role="radiogroup" aria-label="Units">
+    <div class="ml-auto flex items-center gap-0.5 sm:gap-1">
+      <button
+        type="button"
+        class="flex h-9 items-center gap-1.5 rounded-lg border px-2 text-sm font-medium transition-colors sm:mr-1 sm:px-2.5 {compare.on
+          ? 'border-accent bg-accent-soft text-accent-ink'
+          : 'border-line text-ink-2 hover:border-line-strong hover:text-ink'}"
+        aria-pressed={compare.on}
+        title="Compare two setups side by side"
+        onclick={() => setCompare(!compare.on)}
+      >
+        <Columns2 class="size-4" /><span class="max-sm:hidden">Compare</span>
+      </button>
+      <div class="flex rounded-lg bg-surface-2 p-0.5 text-xs font-medium sm:mr-1" role="radiogroup" aria-label="Units">
         {#each [["metric", "m"], ["imperial", "ft"]] as const as [value, label] (value)}
           <button
             type="button"
             role="radio"
             aria-checked={prefs.units === value}
-            class="h-7 rounded-md px-2.5 {prefs.units === value ? 'bg-surface text-ink shadow-sm dark:bg-surface-3' : 'text-ink-3 hover:text-ink'}"
+            class="h-7 rounded-md px-2 sm:px-2.5 {prefs.units === value ? 'bg-surface text-ink shadow-sm dark:bg-surface-3' : 'text-ink-3 hover:text-ink'}"
             onclick={() => (prefs.units = value)}>{label}</button
           >
         {/each}

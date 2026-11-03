@@ -22,6 +22,7 @@ lens, on this sensor? And what is in focus?
 - **Numbers:** subject share of the frame (height, width, area), frame size at the subject, angles
   of view, near/far limits, hyperfocal distance, blur in pixels, pixels on the subject,
   diffraction, full-frame equivalents — and "fit the subject" (which focal length or distance).
+- **Compare:** two setups (A/B) side by side with a comparison table, e.g. 24 mm close vs 200 mm far.
 - Metric or imperial, light or dark, shareable links that open the exact setup.
 
 No backend: everything is computed in the browser; settings live in `localStorage`.
